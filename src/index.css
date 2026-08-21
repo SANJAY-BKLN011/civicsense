@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --civic-navy: #0f172a;
+    --civic-blue: #1e40af;
+    --civic-blue-hover: #1d4ed8;
+    --civic-blue-light: #eff6ff;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased font-sans min-h-screen flex flex-col;
+    margin: 0;
+  }
+
+  #root {
+    @apply min-h-screen flex flex-col w-full;
+  }
+}
