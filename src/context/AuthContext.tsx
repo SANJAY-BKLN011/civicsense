@@ -20,6 +20,14 @@ export interface OfficerUser {
   role: 'officer';
 }
 
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  designation: string;
+  role: 'admin';
+}
+
 interface LoginCredentials {
   email: string;
   password: string;
@@ -49,6 +57,12 @@ interface AuthContextType {
   loginOfficer: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   logoutOfficer: () => void;
 
+  // Admin Auth State
+  adminUser: AdminUser | null;
+  isAdminAuthenticated: boolean;
+  loginAdmin: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
+  logoutAdmin: () => void;
+
   isLoading: boolean;
 }
 
@@ -56,138 +70,118 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const CITIZEN_STORAGE_KEY = 'civicsense_citizen_session';
 const OFFICER_STORAGE_KEY = 'civicsense_officer_session';
+const ADMIN_STORAGE_KEY = 'civicsense_admin_session';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<CitizenUser | null>(null);
   const [officerUser, setOfficerUser] = useState<OfficerUser | null>(null);
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize both sessions from localStorage
   useEffect(() => {
     try {
-      // Citizen session
-      const storedCitizen = localStorage.getItem(CITIZEN_STORAGE_KEY);
-      if (storedCitizen) {
-        const parsedCitizen = JSON.parse(storedCitizen);
-        if (parsedCitizen && parsedCitizen.role === 'citizen') {
-          setUser(parsedCitizen);
-        }
+      const savedCitizen = localStorage.getItem(CITIZEN_STORAGE_KEY);
+      if (savedCitizen) {
+        setUser(JSON.parse(savedCitizen));
       }
 
-      // Officer session
-      const storedOfficer = localStorage.getItem(OFFICER_STORAGE_KEY);
-      if (storedOfficer) {
-        const parsedOfficer = JSON.parse(storedOfficer);
-        if (parsedOfficer && parsedOfficer.role === 'officer') {
-          setOfficerUser(parsedOfficer);
-        }
+      const savedOfficer = localStorage.getItem(OFFICER_STORAGE_KEY);
+      if (savedOfficer) {
+        setOfficerUser(JSON.parse(savedOfficer));
       }
-    } catch {
-      localStorage.removeItem(CITIZEN_STORAGE_KEY);
-      localStorage.removeItem(OFFICER_STORAGE_KEY);
+
+      const savedAdmin = localStorage.getItem(ADMIN_STORAGE_KEY);
+      if (savedAdmin) {
+        setAdminUser(JSON.parse(savedAdmin));
+      }
+    } catch (e) {
+      console.error('Failed to restore sessions from localStorage', e);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // CITIZEN AUTH METHODS
-  const loginCitizen = async ({ email, password, rememberMe = true }: LoginCredentials) => {
+  // Citizen Login Mock
+  const loginCitizen = async (credentials: LoginCredentials) => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await new Promise((res) => setTimeout(res, 500));
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (credentials.email.includes('fail')) {
       setIsLoading(false);
-      return { success: false, error: 'Please enter a valid email address.' };
+      return { success: false, error: 'Invalid citizen email address or password.' };
     }
 
-    if (!password || password.length < 4) {
-      setIsLoading(false);
-      return { success: false, error: 'Password is required (at least 4 characters).' };
-    }
-
-    const citizenUser: CitizenUser = {
-      id: 'CIT-' + Math.floor(1000 + Math.random() * 9000),
-      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Resident Citizen',
-      email,
-      phone: '9876543210',
+    const mockUser: CitizenUser = {
+      id: 'CIT-8842',
+      name: credentials.email.split('@')[0].replace('.', ' ').toUpperCase() || 'Sanjay Patel',
+      email: credentials.email,
+      phone: '+91 98765 43210',
       ward: 'Ward 12 - Central District',
       role: 'citizen',
     };
 
-    setUser(citizenUser);
-    if (rememberMe) {
-      localStorage.setItem(CITIZEN_STORAGE_KEY, JSON.stringify(citizenUser));
+    setUser(mockUser);
+    if (credentials.rememberMe) {
+      localStorage.setItem(CITIZEN_STORAGE_KEY, JSON.stringify(mockUser));
     }
     setIsLoading(false);
     return { success: true };
   };
 
+  // Citizen Register Mock
   const registerCitizen = async (data: RegisterData) => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((res) => setTimeout(res, 600));
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
+    if (data.email.includes('exists')) {
       setIsLoading(false);
-      return { success: false, error: 'Please enter a valid email address.' };
+      return { success: false, error: 'An account with this email address already exists.' };
     }
 
-    if (!data.name.trim()) {
-      setIsLoading(false);
-      return { success: false, error: 'Full name is required.' };
-    }
-
-    const citizenUser: CitizenUser = {
-      id: 'CIT-' + Math.floor(1000 + Math.random() * 9000),
-      name: data.name.trim(),
-      email: data.email.trim(),
-      phone: data.phone.trim(),
+    const newUser: CitizenUser = {
+      id: `CIT-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
       ward: data.ward || 'Ward 12 - Central District',
       role: 'citizen',
     };
 
-    setUser(citizenUser);
-    localStorage.setItem(CITIZEN_STORAGE_KEY, JSON.stringify(citizenUser));
+    setUser(newUser);
+    localStorage.setItem(CITIZEN_STORAGE_KEY, JSON.stringify(newUser));
     setIsLoading(false);
     return { success: true };
   };
 
+  // Citizen Logout
   const logout = () => {
     setUser(null);
     localStorage.removeItem(CITIZEN_STORAGE_KEY);
   };
 
+  // Password Reset Mock
   const requestPasswordReset = async (email: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return { success: false, error: 'Please enter a valid email address.' };
+    await new Promise((res) => setTimeout(res, 500));
+    if (email.includes('notfound')) {
+      return { success: false, error: 'No citizen account found with this email address.' };
     }
     return { success: true };
   };
 
-  // OFFICER AUTH METHODS
-  const loginOfficer = async ({ email, password, rememberMe = true }: LoginCredentials) => {
+  // Officer Login Mock
+  const loginOfficer = async (credentials: LoginCredentials) => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await new Promise((res) => setTimeout(res, 500));
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (credentials.email.includes('fail')) {
       setIsLoading(false);
-      return { success: false, error: 'Please enter a valid department email address.' };
+      return { success: false, error: 'Invalid officer credentials or unverified badge ID.' };
     }
 
-    if (!password || password.length < 4) {
-      setIsLoading(false);
-      return { success: false, error: 'Officer authorization password is required (at least 4 characters).' };
-    }
-
-    // Default or dynamically configured officer user
-    const officer: OfficerUser = {
+    const mockOfficer: OfficerUser = {
       id: 'OFF-SAN-402',
       name: 'Sanjay Kumar',
-      email: email.trim(),
+      email: credentials.email,
       designation: 'Field Officer',
       department: 'Municipality / Sanitation',
       badgeId: 'OFF-SAN-402',
@@ -195,17 +189,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: 'officer',
     };
 
-    setOfficerUser(officer);
-    if (rememberMe) {
-      localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(officer));
+    setOfficerUser(mockOfficer);
+    if (credentials.rememberMe) {
+      localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(mockOfficer));
     }
     setIsLoading(false);
     return { success: true };
   };
 
+  // Officer Logout
   const logoutOfficer = () => {
     setOfficerUser(null);
     localStorage.removeItem(OFFICER_STORAGE_KEY);
+  };
+
+  // Admin Login Mock
+  const loginAdmin = async (credentials: LoginCredentials) => {
+    setIsLoading(true);
+    await new Promise((res) => setTimeout(res, 500));
+
+    if (credentials.email.includes('fail')) {
+      setIsLoading(false);
+      return { success: false, error: 'Invalid administrator credentials.' };
+    }
+
+    const mockAdmin: AdminUser = {
+      id: 'ADM-SYS-001',
+      name: 'Vikramaditya Rao',
+      email: credentials.email,
+      designation: 'Chief Municipal Administrator',
+      role: 'admin',
+    };
+
+    setAdminUser(mockAdmin);
+    if (credentials.rememberMe) {
+      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(mockAdmin));
+    }
+    setIsLoading(false);
+    return { success: true };
+  };
+
+  // Admin Logout
+  const logoutAdmin = () => {
+    setAdminUser(null);
+    localStorage.removeItem(ADMIN_STORAGE_KEY);
   };
 
   return (
@@ -217,12 +244,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         registerCitizen,
         logout,
         requestPasswordReset,
-
         officerUser,
         isOfficerAuthenticated: !!officerUser,
         loginOfficer,
         logoutOfficer,
-
+        adminUser,
+        isAdminAuthenticated: !!adminUser,
+        loginAdmin,
+        logoutAdmin,
         isLoading,
       }}
     >

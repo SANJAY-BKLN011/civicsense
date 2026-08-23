@@ -23,12 +23,13 @@ import {
   LoadingState,
   ErrorMessage,
 } from '../../components/ui';
-import { mockCitizenComplaints, type ComplaintData } from '../../data/mockComplaints';
+import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
 
 type FilterStatus = 'ALL' | 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
 
 export function CitizenComplaints() {
   const navigate = useNavigate();
+  const { complaints } = useOfficerComplaints();
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,10 +46,10 @@ export function CitizenComplaints() {
     { id: 'RESOLVED', label: 'Resolved' },
   ];
 
-  const getFilteredComplaints = (): ComplaintData[] => {
+  const getFilteredComplaints = () => {
     if (uiState === 'empty') return [];
 
-    return mockCitizenComplaints.filter((item) => {
+    return complaints.filter((item) => {
       // Status Filter
       const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
 
@@ -111,7 +112,7 @@ export function CitizenComplaints() {
             variant={uiState === 'normal' ? 'secondary' : 'outline'}
             onClick={() => setUiState('normal')}
           >
-            Populated List ({mockCitizenComplaints.length})
+            Populated List ({complaints.length})
           </Button>
           <Button
             size="sm"
@@ -241,7 +242,7 @@ export function CitizenComplaints() {
                 </div>
 
                 <span className="text-xs text-slate-500 font-medium">
-                  Showing {filteredList.length} of {mockCitizenComplaints.length} complaints
+                  Showing {filteredList.length} of {complaints.length} complaints
                 </span>
               </div>
             </CardContent>

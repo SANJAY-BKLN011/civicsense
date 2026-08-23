@@ -16,8 +16,10 @@ import {
   ChevronRight,
   ShieldCheck,
   RotateCcw,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
 import {
   PageHeader,
   Card,
@@ -46,6 +48,7 @@ interface MockRecentComplaint {
 export function CitizenDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { complaints: storeComplaints } = useOfficerComplaints();
 
   // State switcher to preview different UI states requested in F3 requirements
   const [dashboardState, setDashboardState] = useState<'normal' | 'loading' | 'empty' | 'error'>('normal');
@@ -55,11 +58,16 @@ export function CitizenDashboard() {
   const citizenWard = user?.ward || 'Ward 12 - Central District';
   const citizenId = user?.id || 'CIT-8842';
 
+  const totalCount = storeComplaints.length;
+  const newCount = storeComplaints.filter((c) => c.status === 'NEW').length;
+  const inProgressCount = storeComplaints.filter((c) => c.status === 'IN_PROGRESS' || c.status === 'ASSIGNED').length;
+  const resolvedCount = storeComplaints.filter((c) => c.status === 'RESOLVED').length;
+
   // Complaint Statistics (4 required metrics)
   const stats = [
     {
       title: 'Total Complaints',
-      value: '5',
+      value: `${totalCount}`,
       description: 'Lifetime issues filed',
       icon: <Layers className="w-5 h-5 text-blue-700" />,
       bg: 'bg-blue-50',
@@ -67,7 +75,7 @@ export function CitizenDashboard() {
     },
     {
       title: 'New',
-      value: '1',
+      value: `${newCount}`,
       description: 'Awaiting initial triage',
       icon: <AlertCircle className="w-5 h-5 text-sky-700" />,
       bg: 'bg-sky-50',
@@ -75,7 +83,7 @@ export function CitizenDashboard() {
     },
     {
       title: 'In Progress',
-      value: '2',
+      value: `${inProgressCount}`,
       description: 'Field crews assigned',
       icon: <Clock className="w-5 h-5 text-amber-700" />,
       bg: 'bg-amber-50',
@@ -83,7 +91,7 @@ export function CitizenDashboard() {
     },
     {
       title: 'Resolved',
-      value: '2',
+      value: `${resolvedCount}`,
       description: 'Completed & verified',
       icon: <CheckCircle2 className="w-5 h-5 text-emerald-700" />,
       bg: 'bg-emerald-50',
@@ -91,49 +99,17 @@ export function CitizenDashboard() {
     },
   ];
 
-  // Recent 4 Mock Complaints with thumbnails and clickable targets
-  const recentComplaints: MockRecentComplaint[] = [
-    {
-      id: 'CIV-2026-085',
-      title: 'Damaged Pavement Slab on High Street Pedestrian Walkway',
-      department: 'Public Works Department (PWD)',
-      location: 'High Street, opposite City Bank',
-      date: 'Aug 21, 2026',
-      status: 'NEW',
-      urgency: 'Medium',
-      thumbnailIcon: '🚧',
-    },
-    {
-      id: 'CIV-2026-081',
-      title: 'Deep Pothole near Central Market Road',
-      department: 'Roads & Public Works',
-      location: 'Main Market St, opposite Gate 3',
-      date: 'Aug 19, 2026',
-      status: 'IN_PROGRESS',
-      urgency: 'High',
-      thumbnailIcon: '🕳️',
-    },
-    {
-      id: 'CIV-2026-074',
-      title: 'Non-functioning Street Lights on 4th Cross',
-      department: 'City Electrical Infrastructure',
-      location: '4th Cross Rd, near Park Junction',
-      date: 'Aug 15, 2026',
-      status: 'ASSIGNED',
-      urgency: 'Medium',
-      thumbnailIcon: '💡',
-    },
-    {
-      id: 'CIV-2026-061',
-      title: 'Overflowing Municipal Garbage Bin',
-      department: 'Solid Waste & Sanitation Board',
-      location: 'Parkside Avenue corner',
-      date: 'Aug 10, 2026',
-      status: 'RESOLVED',
-      urgency: 'Medium',
-      thumbnailIcon: '🗑️',
-    },
-  ];
+  // Recent Complaints directly from reactive store
+  const recentComplaints: MockRecentComplaint[] = storeComplaints.slice(0, 4).map((c) => ({
+    id: c.id,
+    title: c.title,
+    department: c.department,
+    location: c.location,
+    date: c.submittedDate,
+    status: c.status,
+    urgency: c.priority,
+    thumbnailIcon: c.thumbnailIcon || '📌',
+  }));
 
   return (
     <div className="space-y-8">
@@ -379,6 +355,24 @@ export function CitizenDashboard() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Notifications Quick Widget */}
+          <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-700 text-white flex items-center justify-center shrink-0">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">Citizen Notification Center</h4>
+                <p className="text-xs text-slate-600">Track real-time status changes and resolution progress for reported issues.</p>
+              </div>
+            </div>
+            <Link to="/notifications" className="shrink-0">
+              <Button variant="secondary" size="sm" rightIcon={<ChevronRight className="w-3.5 h-3.5" />}>
+                View All Notifications
+              </Button>
+            </Link>
           </div>
 
           {/* 5. Quick Actions Section */}

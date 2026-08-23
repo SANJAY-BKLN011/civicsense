@@ -5,7 +5,8 @@ import { Footer } from './Footer';
 export function OfficerLayout() {
   const navItems = [
     { label: 'Dashboard', href: '/officer/dashboard' },
-    { label: 'Complaints', href: '/officer/complaints' },
+    { label: 'Assigned Complaints', href: '/officer/complaints' },
+    { label: 'Department Queue', href: '/officer/department' },
     { label: 'Profile', href: '/officer/profile' },
   ];
 

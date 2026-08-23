@@ -1,14 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import {
-  Shield,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  Lock,
-  Mail,
-  Building2,
-} from 'lucide-react';
+import { Building2, Eye, EyeOff, ArrowRight, Lock, Mail, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   Card,
@@ -22,10 +14,10 @@ import {
   ErrorMessage,
 } from '../../components/ui';
 
-export function OfficerLogin() {
+export function AdminLogin() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loginOfficer } = useAuth();
+  const { loginAdmin } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,20 +27,20 @@ export function OfficerLogin() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const from = (location.state as { from?: string })?.from || '/officer/dashboard';
+  const from = (location.state as { from?: string })?.from || '/admin/dashboard';
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!email.trim()) {
-      newErrors.email = 'Department email address is required.';
+      newErrors.email = 'Administrator email address is required.';
     } else if (!emailRegex.test(email.trim())) {
-      newErrors.email = 'Please enter a valid department email address.';
+      newErrors.email = 'Please enter a valid administrator email address.';
     }
 
     if (!password) {
-      newErrors.password = 'Officer password is required.';
+      newErrors.password = 'Admin security password is required.';
     } else if (password.length < 4) {
       newErrors.password = 'Password must be at least 4 characters.';
     }
@@ -64,19 +56,19 @@ export function OfficerLogin() {
     if (!validate()) return;
 
     setIsLoading(true);
-    const result = await loginOfficer({ email: email.trim(), password, rememberMe });
+    const result = await loginAdmin({ email: email.trim(), password, rememberMe });
     setIsLoading(false);
 
     if (result.success) {
       navigate(from, { replace: true });
     } else {
-      setAuthError(result.error || 'Authentication failed. Please check your credentials.');
+      setAuthError(result.error || 'Authentication failed. Invalid admin credentials.');
     }
   };
 
   const handlePrefill = () => {
-    setEmail('sanjay.kumar@civicsense.gov');
-    setPassword('officer123');
+    setEmail('admin@civicsense.gov');
+    setPassword('admin123');
     setErrors({});
     setAuthError(null);
   };
@@ -85,35 +77,35 @@ export function OfficerLogin() {
     <div className="max-w-md mx-auto py-12 px-4">
       {/* Header Icon & Title */}
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-slate-900 text-white mb-3 shadow-md">
-          <Shield className="w-6 h-6" />
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-700 text-white mb-3 shadow-md">
+          <ShieldAlert className="w-6 h-6" />
         </div>
-        <h1 className="text-2xl font-bold text-slate-900">Officer Portal Sign In</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Admin Portal Sign In</h1>
         <p className="text-sm text-slate-600 mt-1">
-          Authorized access for municipal officers & department personnel
+          Municipal Command Center & System Management
         </p>
       </div>
 
       {/* Demo Helper */}
-      <div className="mb-4 p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+      <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-slate-700">Demo Officer Account</p>
-          <p className="text-[11px] text-slate-500">sanjay.kumar@civicsense.gov</p>
+          <p className="text-xs font-semibold text-blue-900">Demo Admin Account</p>
+          <p className="text-[11px] text-blue-700">admin@civicsense.gov</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={handlePrefill}>
-          Use Demo
+          Use Demo Admin
         </Button>
       </div>
 
       {/* Login Card */}
       <Card className="shadow-md">
-        <CardHeader className="bg-slate-50/60 border-b border-slate-200">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-200">
           <CardTitle className="text-base flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-slate-700" />
-            Officer Credentials
+            <Building2 className="w-4 h-4 text-blue-700" />
+            Administrator Credentials
           </CardTitle>
           <CardDescription>
-            Municipality / Sanitation Department — Ward 12
+            System-wide access for municipal directors & system managers
           </CardDescription>
         </CardHeader>
 
@@ -130,10 +122,10 @@ export function OfficerLogin() {
 
             {/* Email */}
             <Input
-              id="officer-email"
+              id="admin-email"
               type="email"
-              label="Department Email Address"
-              placeholder="e.g. officer@civicsense.gov"
+              label="Admin Email Address"
+              placeholder="e.g. admin@civicsense.gov"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
@@ -145,35 +137,32 @@ export function OfficerLogin() {
               autoComplete="email"
             />
 
-            {/* Password with show/hide toggle */}
-            <div className="space-y-1.5">
-              <Input
-                id="officer-password"
-                type={showPassword ? 'text' : 'password'}
-                label="Officer Password"
-                placeholder="Enter your secure password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errors.password) setErrors((p) => ({ ...p, password: '' }));
-                }}
-                error={errors.password}
-                leftIcon={<Lock className="w-4 h-4" />}
-                rightIcon={
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                    tabIndex={-1}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                }
-                required
-                autoComplete="current-password"
-              />
-            </div>
+            {/* Password */}
+            <Input
+              id="admin-password"
+              type={showPassword ? 'text' : 'password'}
+              label="Security Password"
+              placeholder="Enter your admin password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors((p) => ({ ...p, password: '' }));
+              }}
+              error={errors.password}
+              leftIcon={<Lock className="w-4 h-4" />}
+              rightIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              }
+              required
+              autoComplete="current-password"
+            />
 
             {/* Remember Me */}
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -183,26 +172,30 @@ export function OfficerLogin() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="w-4 h-4 rounded border-slate-400 text-blue-700 accent-blue-700 cursor-pointer"
               />
-              <span className="text-xs font-medium text-slate-700">Keep me signed in on this device</span>
+              <span className="text-xs font-medium text-slate-700">Keep me signed in on this workstation</span>
             </label>
           </CardContent>
 
           <CardFooter className="flex-col gap-3 p-6">
             <Button
               type="submit"
-              variant="secondary"
+              variant="primary"
               size="md"
               className="w-full"
               isLoading={isLoading}
               rightIcon={!isLoading ? <ArrowRight className="w-4 h-4" /> : undefined}
             >
-              Sign In to Officer Portal
+              Sign In to Admin Portal
             </Button>
 
             <div className="text-xs text-center text-slate-500">
-              Not an officer?{' '}
-              <Link to="/citizen/login" className="text-blue-700 font-semibold hover:underline">
-                Citizen Login →
+              Not an admin?{' '}
+              <Link to="/officer/login" className="text-blue-700 font-semibold hover:underline mr-2">
+                Officer Login
+              </Link>
+              •
+              <Link to="/citizen/login" className="text-blue-700 font-semibold hover:underline ml-2">
+                Citizen Login
               </Link>
             </div>
           </CardFooter>

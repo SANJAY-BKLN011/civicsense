@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Building2, Menu, X, User, Shield, ChevronRight, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { NotificationPanel } from '../notifications/NotificationPanel';
 import { cn } from '../../utils/cn';
 
 interface NavItem {
@@ -18,11 +19,16 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, officerUser, isOfficerAuthenticated, logoutOfficer } = useAuth();
 
-  const handleLogout = () => {
+  const handleCitizenLogout = () => {
     logout();
     navigate('/citizen/login', { replace: true });
+  };
+
+  const handleOfficerLogout = () => {
+    logoutOfficer();
+    navigate('/officer/login', { replace: true });
   };
 
   const getPortalBadge = () => {
@@ -42,7 +48,12 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
         </span>
       );
     }
-    return null;
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100/90 text-amber-900 border border-amber-300">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+        DEMO MODE • Simulated Prototype Data
+      </span>
+    );
   };
 
   return (
@@ -96,10 +107,12 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
             </nav>
           )}
 
-          {/* Right Action / Auth & Portal Switcher */}
+          {/* Right Action / Auth & Portal Switcher & Notifications */}
           <div className="hidden md:flex items-center gap-3">
             {portalType === 'citizen' && isAuthenticated && user ? (
               <div className="flex items-center gap-3">
+                <NotificationPanel role="citizen" />
+
                 <div className="flex items-center gap-2 text-left">
                   <div className="w-7 h-7 rounded-full bg-blue-700 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
                     {user.name.charAt(0)}
@@ -116,9 +129,37 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
 
                 <button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={handleCitizenLogout}
                   className="text-xs font-medium text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
                   title="Sign out of Citizen Portal"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log out</span>
+                </button>
+              </div>
+            ) : portalType === 'officer' && isOfficerAuthenticated && officerUser ? (
+              <div className="flex items-center gap-3">
+                <NotificationPanel role="officer" />
+
+                <div className="flex items-center gap-2 text-left">
+                  <div className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                    {officerUser.name.charAt(0)}
+                  </div>
+                  <div className="text-xs">
+                    <span className="font-semibold text-slate-900 block leading-tight">
+                      {officerUser.name}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {officerUser.badgeId}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOfficerLogout}
+                  className="text-xs font-medium text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Sign out of Officer Portal"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Log out</span>
@@ -167,8 +208,15 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Button & Notification Bell */}
           <div className="flex md:hidden items-center gap-2">
+            {portalType === 'citizen' && isAuthenticated && (
+              <NotificationPanel role="citizen" align="right" />
+            )}
+            {portalType === 'officer' && isOfficerAuthenticated && (
+              <NotificationPanel role="officer" align="right" />
+            )}
+
             {getPortalBadge()}
             <button
               type="button"
@@ -201,9 +249,33 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  handleLogout();
+                  handleCitizenLogout();
                 }}
                 className="text-xs font-semibold text-rose-700 px-2 py-1 bg-white rounded border border-rose-200"
+              >
+                Log out
+              </button>
+            </div>
+          )}
+
+          {portalType === 'officer' && isOfficerAuthenticated && officerUser && (
+            <div className="p-3 bg-slate-900 text-white rounded-md flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs font-bold">
+                  {officerUser.name.charAt(0)}
+                </div>
+                <div className="text-xs">
+                  <div className="font-semibold text-white">{officerUser.name}</div>
+                  <div className="text-[10px] text-slate-400">{officerUser.badgeId} • {officerUser.department}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleOfficerLogout();
+                }}
+                className="text-xs font-semibold text-rose-400 px-2 py-1 bg-slate-800 rounded border border-slate-700"
               >
                 Log out
               </button>
@@ -231,30 +303,20 @@ export function Header({ portalType = 'public', navItems = [] }: HeaderProps) {
 
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
             <Link
+              to="/notifications"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-sm text-blue-700 font-medium py-1 flex items-center gap-1"
+            >
+              <Building2 className="w-4 h-4" />
+              <span>Notification Center</span>
+            </Link>
+            <Link
               to="/"
               onClick={() => setMobileMenuOpen(false)}
               className="text-sm text-slate-600 hover:text-slate-900 py-1"
             >
               ← Back to Main Landing
             </Link>
-            {portalType !== 'citizen' && (
-              <Link
-                to="/citizen"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-blue-700 font-medium py-1"
-              >
-                Citizen Portal
-              </Link>
-            )}
-            {portalType !== 'officer' && (
-              <Link
-                to="/officer"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm text-slate-800 font-medium py-1"
-              >
-                Officer Portal
-              </Link>
-            )}
           </div>
         </div>
       )}

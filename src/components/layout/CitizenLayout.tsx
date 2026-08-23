@@ -7,6 +7,7 @@ export function CitizenLayout() {
     { label: 'Dashboard', href: '/citizen/dashboard' },
     { label: 'Report Issue', href: '/citizen/report' },
     { label: 'My Complaints', href: '/citizen/complaints' },
+    { label: 'Profile', href: '/citizen/profile' },
   ];
 
   return (

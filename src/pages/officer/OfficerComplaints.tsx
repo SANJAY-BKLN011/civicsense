@@ -1,348 +1,321 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
   MapPin,
-  Edit3,
+  Calendar,
+  Building,
+  ChevronRight,
+  X,
+  ClipboardList,
+  Filter,
+  RotateCcw,
 } from 'lucide-react';
 import {
   PageHeader,
   Card,
-  CardHeader,
   CardTitle,
   CardContent,
-  CardFooter,
   Button,
   Badge,
   Input,
   Select,
-  Textarea,
-  Modal,
   EmptyState,
   LoadingState,
   type BadgeVariant,
 } from '../../components/ui';
+import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
+import type { OfficerComplaintData } from '../../data/mockOfficerComplaints';
 
-interface OfficerComplaintItem {
-  id: string;
-  title: string;
-  category: string;
-  location: string;
-  ward: string;
-  reporter: string;
-  date: string;
-  status: BadgeVariant;
-  urgency: 'Low' | 'Medium' | 'High' | 'Critical';
-  assignedCrew?: string;
-}
+type FilterStatus = 'ALL' | 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
+type PriorityFilter = 'ALL' | 'Low' | 'Medium' | 'High' | 'Critical';
 
 export function OfficerComplaints() {
-  const [activeTab, setActiveTab] = useState<'all' | 'empty' | 'loading'>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedCase, setSelectedCase] = useState<OfficerComplaintItem | null>(null);
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const navigate = useNavigate();
+  const { complaints, resetToDefault } = useOfficerComplaints();
 
-  const complaints: OfficerComplaintItem[] = [
-    {
-      id: 'CIV-2026-082',
-      title: 'Water Main Burst Causing Street Flooding',
-      category: 'Water Supply',
-      location: 'Ward 12, 7th Cross Rd',
-      ward: 'Ward 12',
-      reporter: 'David K. (Citizen)',
-      date: 'Aug 21, 2026',
-      status: 'submitted',
-      urgency: 'Critical',
-      assignedCrew: 'Unassigned',
-    },
-    {
-      id: 'CIV-2026-081',
-      title: 'Deep Pothole near Central Market Road',
-      category: 'Roads & Transport',
-      location: 'Ward 12, Main Market St.',
-      ward: 'Ward 12',
-      reporter: 'Sarah J. (Citizen)',
-      date: 'Aug 19, 2026',
-      status: 'in-progress',
-      urgency: 'High',
-      assignedCrew: 'Roads Repair Crew #4',
-    },
-    {
-      id: 'CIV-2026-079',
-      title: 'Fallen Tree Branch on Power Cable',
-      category: 'Electrical',
-      location: 'Ward 12, Pine Avenue',
-      ward: 'Ward 12',
-      reporter: 'Elena R. (Citizen)',
-      date: 'Aug 18, 2026',
-      status: 'under-review',
-      urgency: 'High',
-      assignedCrew: 'Power & Grid Team #2',
-    },
-    {
-      id: 'CIV-2026-074',
-      title: 'Non-functioning Street Lights on 4th Cross',
-      category: 'Streetlighting',
-      location: 'Ward 12, 4th Cross Rd',
-      ward: 'Ward 12',
-      reporter: 'Sarah J. (Citizen)',
-      date: 'Aug 15, 2026',
-      status: 'submitted',
-      urgency: 'Medium',
-      assignedCrew: 'Unassigned',
-    },
-    {
-      id: 'CIV-2026-061',
-      title: 'Overflowing Municipal Garbage Bin',
-      category: 'Sanitation',
-      location: 'Ward 12, Parkside Avenue',
-      ward: 'Ward 12',
-      reporter: 'Alex M. (Citizen)',
-      date: 'Aug 10, 2026',
-      status: 'resolved',
-      urgency: 'Medium',
-      assignedCrew: 'Sanitation Unit B',
-    },
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('ALL');
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
+  const [uiState, setUiState] = useState<'normal' | 'loading' | 'empty'>('normal');
+
+  const filterTabs: { id: FilterStatus; label: string }[] = [
+    { id: 'ALL', label: 'All' },
+    { id: 'NEW', label: 'New' },
+    { id: 'ASSIGNED', label: 'Assigned' },
+    { id: 'IN_PROGRESS', label: 'In Progress' },
+    { id: 'RESOLVED', label: 'Resolved' },
   ];
 
-  const filtered = complaints.filter((c) => {
-    const matchesSearch =
-      c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const getFiltered = (): OfficerComplaintData[] => {
+    if (uiState === 'empty') return [];
+    return complaints.filter((item) => {
+      const matchStatus = statusFilter === 'ALL' || item.status === statusFilter;
+      const matchPriority = priorityFilter === 'ALL' || item.priority === priorityFilter;
 
-  const handleOpenUpdate = (item: OfficerComplaintItem) => {
-    setSelectedCase(item);
-    setIsUpdateModalOpen(true);
+      const q = searchTerm.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        item.id.toLowerCase().includes(q) ||
+        item.title.toLowerCase().includes(q) ||
+        item.location.toLowerCase().includes(q);
+
+      return matchStatus && matchPriority && matchSearch;
+    });
+  };
+
+  const filtered = getFiltered();
+
+  const getPriorityStyle = (priority: string) => {
+    switch (priority) {
+      case 'Critical':
+        return 'bg-rose-100 text-rose-800 border-rose-200';
+      case 'High':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'Medium':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-5xl mx-auto pb-12">
       <PageHeader
-        title="Municipal Complaints Queue"
-        description="Review, triage, and update neighborhood civic complaints assigned to your department."
+        title="Assigned Complaints"
+        description="Filter, search, and manage civic complaints assigned to your officer account."
         breadcrumbs={[
           { label: 'Officer Portal', href: '/officer' },
           { label: 'Dashboard', href: '/officer/dashboard' },
-          { label: 'Complaints' },
+          { label: 'Assigned Complaints' },
         ]}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetToDefault}
+            leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+          >
+            Reset Mock Data
+          </Button>
+        }
       />
 
-      {/* View Switcher for Testing Component States */}
-      <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-slate-200">
-        <div className="flex items-center gap-2">
+      {/* State Switcher Preview */}
+      <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase text-slate-500 mr-1">Preview State:</span>
-          <Button
-            size="sm"
-            variant={activeTab === 'all' ? 'secondary' : 'outline'}
-            onClick={() => setActiveTab('all')}
-          >
-            All Assigned ({complaints.length})
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTab === 'empty' ? 'secondary' : 'outline'}
-            onClick={() => setActiveTab('empty')}
-          >
-            Empty State Preview
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTab === 'loading' ? 'secondary' : 'outline'}
-            onClick={() => setActiveTab('loading')}
-          >
-            Loading State Preview
-          </Button>
+          {(['normal', 'loading', 'empty'] as const).map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={uiState === s ? 'secondary' : 'outline'}
+              onClick={() => setUiState(s)}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </Button>
+          ))}
         </div>
-
-        <span className="text-xs text-slate-500">
-          Showing mock UI placeholders
-        </span>
+        <span className="text-xs text-slate-500 font-mono">{complaints.length} Total Complaints Loaded</span>
       </div>
 
-      {activeTab === 'loading' && (
-        <LoadingState
-          title="Loading Municipal Queue..."
-          description="Retrieving department cases and triage assignments (visual loading state demonstration)."
-        />
-      )}
+      {uiState === 'loading' && <LoadingState title="Loading assigned complaints..." />}
 
-      {activeTab === 'empty' && (
+      {uiState === 'empty' && (
         <EmptyState
-          title="No Cases in Queue"
-          description="All assigned civic complaints in Ward 12 have been reviewed and resolved."
+          icon={<ClipboardList className="w-6 h-6 text-slate-400" />}
+          title="No Complaints Assigned"
+          description="You currently have no complaints assigned to your officer profile."
           action={
-            <Link to="/officer/dashboard">
-              <Button size="sm" variant="secondary">
-                Return to Dashboard
-              </Button>
+            <Link to="/officer/department">
+              <Button size="sm" variant="secondary">View Department Queue</Button>
             </Link>
           }
         />
       )}
 
-      {activeTab === 'all' && (
+      {uiState === 'normal' && (
         <>
-          {/* Filters Bar */}
-          <Card className="bg-slate-50/70">
-            <CardContent className="py-4">
+          {/* Filter Toolbar */}
+          <Card className="bg-slate-50/80 shadow-2xs">
+            <CardContent className="p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Search Bar */}
                 <div className="sm:col-span-2">
                   <Input
-                    placeholder="Search by Case ID, keyword, or street location..."
+                    placeholder="Search by Complaint ID, title, or location..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     leftIcon={<Search className="w-4 h-4" />}
+                    rightIcon={
+                      searchTerm ? (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      ) : undefined
+                    }
                   />
                 </div>
+
+                {/* Priority Selector */}
                 <div>
                   <Select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    value={priorityFilter}
+                    onChange={(e) => setPriorityFilter(e.target.value as PriorityFilter)}
                     options={[
-                      { value: 'all', label: 'All Statuses' },
-                      { value: 'submitted', label: 'Submitted (New)' },
-                      { value: 'under-review', label: 'Under Review' },
-                      { value: 'in-progress', label: 'In Progress' },
-                      { value: 'resolved', label: 'Resolved' },
-                      { value: 'rejected', label: 'Rejected' },
+                      { value: 'ALL', label: 'All Priorities' },
+                      { value: 'Critical', label: 'Critical Priority' },
+                      { value: 'High', label: 'High Priority' },
+                      { value: 'Medium', label: 'Medium Priority' },
+                      { value: 'Low', label: 'Low Priority' },
                     ]}
                   />
                 </div>
               </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-200/70">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-semibold text-slate-500 mr-1 flex items-center gap-1">
+                    <Filter className="w-3.5 h-3.5" />
+                    Status:
+                  </span>
+                  {filterTabs.map((tab) => {
+                    const count =
+                      tab.id === 'ALL'
+                        ? complaints.length
+                        : complaints.filter((c) => c.status === tab.id).length;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setStatusFilter(tab.id)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                          statusFilter === tab.id
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                      >
+                        <span>{tab.label}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                            statusFilter === tab.id ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {(searchTerm || statusFilter !== 'ALL' || priorityFilter !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setStatusFilter('ALL');
+                      setPriorityFilter('ALL');
+                    }}
+                    className="text-xs text-blue-700 font-semibold hover:underline cursor-pointer ml-auto"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Cases List */}
-          <div className="space-y-4">
-            {filtered.length === 0 ? (
-              <div className="p-8 text-center bg-white rounded-lg border border-slate-200 text-sm text-slate-500">
-                No matching records for your filter.
-              </div>
-            ) : (
-              filtered.map((item) => (
-                <Card key={item.id} className="hover:border-slate-300 transition-colors">
-                  <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 py-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="text-xs font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          {item.id}
+          {/* Results Summary */}
+          <div className="text-xs text-slate-500 flex items-center justify-between px-1">
+            <span>Showing <strong className="text-slate-900 font-bold">{filtered.length}</strong> assigned complaint{filtered.length === 1 ? '' : 's'}</span>
+          </div>
+
+          {/* Complaints List */}
+          {filtered.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-lg border border-dashed border-slate-300 space-y-3">
+              <Search className="w-8 h-8 text-slate-400 mx-auto" />
+              <p className="text-sm font-semibold text-slate-700">No matching complaints found</p>
+              <p className="text-xs text-slate-500">Try adjusting your search keywords, priority filter, or status selection.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('ALL');
+                  setPriorityFilter('ALL');
+                }}
+              >
+                Clear Filters
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {filtered.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => navigate(`/officer/complaints/${c.id}`)}
+                  className="p-4 sm:p-5 rounded-lg bg-white border border-slate-200 hover:border-slate-400 hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') navigate(`/officer/complaints/${c.id}`);
+                  }}
+                >
+                  <div className="flex items-start sm:items-center gap-4">
+                    <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+                      {c.thumbnailIcon}
+                    </div>
+
+                    <div className="space-y-1.5 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          {c.id}
                         </span>
-                        <CardTitle className="text-base">{item.title}</CardTitle>
                         <span
-                          className={`text-xs px-2 py-0.5 rounded font-bold ${
-                            item.urgency === 'Critical'
-                              ? 'bg-rose-100 text-rose-800'
-                              : item.urgency === 'High'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${getPriorityStyle(c.priority)}`}
                         >
-                          {item.urgency} Urgency
+                          {c.priority} Priority
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-1">
-                        <span>{item.category}</span>
+
+                      <CardTitle className="text-base text-slate-900 group-hover:text-slate-700 transition-colors">
+                        {c.title}
+                      </CardTitle>
+
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-0.5">
+                        <span className="flex items-center gap-1 font-medium text-slate-600">
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
+                          {c.department}
+                        </span>
                         <span>•</span>
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-400" />
-                          {item.location} ({item.ward})
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                          {c.location}
                         </span>
                         <span>•</span>
-                        <span>Reported by {item.reporter}</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {c.submittedDate}
+                        </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
-                      <Badge variant={item.status} dot />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenUpdate(item)}
-                        leftIcon={<Edit3 className="w-3.5 h-3.5" />}
-                      >
-                        Update
-                      </Button>
-                    </div>
-                  </CardHeader>
-
-                  <CardFooter className="bg-slate-50/60 py-2.5 px-6 text-xs text-slate-600 justify-between">
-                    <div>
-                      <span className="font-semibold text-slate-700">Assigned Crew:</span>{' '}
-                      <span className="text-slate-600">{item.assignedCrew}</span>
-                    </div>
-                    <div className="text-slate-400">Date: {item.date}</div>
-                  </CardFooter>
-                </Card>
-              ))
-            )}
-          </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                    <Badge variant={c.status as BadgeVariant} size="md" dot />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
-      )}
-
-      {/* Case Status Update Modal */}
-      {selectedCase && (
-        <Modal
-          isOpen={isUpdateModalOpen}
-          onClose={() => setIsUpdateModalOpen(false)}
-          title={`Update Case ${selectedCase.id}`}
-          description="Officer triage and status modification placeholder"
-          footer={
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setIsUpdateModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsUpdateModalOpen(false)}
-              >
-                Save Updates (Mock)
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-4 text-left">
-            <div>
-              <h5 className="font-semibold text-slate-900 text-sm">{selectedCase.title}</h5>
-              <p className="text-xs text-slate-500">{selectedCase.location} • {selectedCase.category}</p>
-            </div>
-
-            <Select
-              label="Update Workflow Status"
-              defaultValue={selectedCase.status}
-              options={[
-                { value: 'submitted', label: 'Submitted (Unassigned)' },
-                { value: 'under-review', label: 'Under Review / Inspection' },
-                { value: 'in-progress', label: 'In Progress (Crew Dispatched)' },
-                { value: 'resolved', label: 'Resolved (Work Completed)' },
-                { value: 'rejected', label: 'Rejected (Out of Jurisdiction)' },
-              ]}
-            />
-
-            <Select
-              label="Assign Field Crew"
-              defaultValue={selectedCase.assignedCrew || ''}
-              options={[
-                { value: 'Roads Repair Crew #4', label: 'Roads Repair Crew #4' },
-                { value: 'Sanitation Unit B', label: 'Sanitation Unit B' },
-                { value: 'Power & Grid Team #2', label: 'Power & Grid Team #2' },
-                { value: 'Water Board Rapid Unit', label: 'Water Board Rapid Unit' },
-              ]}
-            />
-
-            <Textarea
-              label="Officer Action Notes"
-              placeholder="e.g. Field inspection scheduled for 2:00 PM..."
-              rows={3}
-              helperText="Notes are logged for municipal audits and citizen status tracking."
-            />
-          </div>
-        </Modal>
       )}
     </div>
   );

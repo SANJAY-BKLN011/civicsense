@@ -17,6 +17,10 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
+import { useAdminComplaints } from '../../context/AdminComplaintsContext';
+import { useNotifications } from '../../context/NotificationContext';
+import { CIVIC_DEPARTMENTS } from '../../constants/departments';
 import {
   PageHeader,
   Card,
@@ -35,6 +39,9 @@ import {
 
 export function CitizenReport() {
   const { user } = useAuth();
+  const { addComplaint: addOfficerComplaint } = useOfficerComplaints();
+  const { addComplaint: addAdminComplaint } = useAdminComplaints();
+  const { addNotification } = useNotifications();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form Field States
@@ -69,20 +76,11 @@ export function CitizenReport() {
     photoPreview: string | null;
   } | null>(null);
 
-  // Department Options
-  const departmentOptions = [
-    { value: 'Municipality / Sanitation', label: '1. Municipality / Sanitation' },
-    { value: 'Roads & Infrastructure', label: '2. Roads & Infrastructure' },
-    { value: 'Water Supply', label: '3. Water Supply' },
-    { value: 'Electricity', label: '4. Electricity' },
-    { value: 'Traffic', label: '5. Traffic' },
-    { value: 'Public Health', label: '6. Public Health' },
-    { value: 'Environment / Parks', label: '7. Environment / Parks' },
-    { value: 'Fire & Emergency', label: '8. Fire & Emergency' },
-    { value: 'Public Transport', label: '9. Public Transport' },
-    { value: 'Housing / Building Issues', label: '10. Housing / Building Issues' },
-    { value: 'Other / Not Sure', label: '11. Other / Not Sure' },
-  ];
+  // Department Options imported from centralized constants
+  const departmentOptions = CIVIC_DEPARTMENTS.map((d, index) => ({
+    value: d.value,
+    label: `${index + 1}. ${d.label}`,
+  }));
 
   // Photo selection handler
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,18 +210,88 @@ export function CitizenReport() {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+    });
+    const formattedTime = now.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
+    });
+    const fullFormattedDate = `${formattedDate}, ${formattedTime}`;
+
+    const locationStr = coordinates
+      ? `${manualLocation.trim()} (GPS: ${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)})`
+      : manualLocation.trim();
+
+    // Create Officer complaint record
+    addOfficerComplaint({
+      id: mockId,
+      title: title.trim(),
+      category: 'Sanitation & Waste',
+      department,
+      location: locationStr,
+      ward: ward || 'Ward 12 - Central District',
+      submittedDate: formattedDate,
+      submittedTime: formattedTime,
+      citizenName: user?.name || 'Sanjay Patel',
+      status: 'NEW',
+      priority: 'Medium',
+      thumbnailIcon: '📌',
+      description: description.trim(),
+      coordinates: coordinates || { lat: 12.9716, lng: 77.5946 },
+      timeline: [
+        {
+          id: `tl-sub-${Date.now()}`,
+          timestamp: `${formattedDate} at ${formattedTime}`,
+          title: 'Complaint Submitted',
+          description: 'Issue reported by citizen and logged into central triage system.',
+          author: user?.name || 'Sanjay Patel',
+          type: 'submission',
+        },
+      ],
+    });
+
+    // Create Admin complaint record
+    addAdminComplaint({
+      id: mockId,
+      title: title.trim(),
+      category: 'Sanitation & Waste',
+      department,
+      location: locationStr,
+      ward: ward || 'Ward 12 - Central District',
+      submittedDate: formattedDate,
+      submittedTime: formattedTime,
+      citizenName: user?.name || 'Sanjay Patel',
+      assignedOfficer: 'Officer Sanjay Kumar',
+      assignedOfficerId: 'OFF-SAN-402',
+      status: 'NEW',
+      priority: 'Medium',
+      thumbnailIcon: '📌',
+      description: description.trim(),
+      coordinates: coordinates || { lat: 12.9716, lng: 77.5946 },
+    });
+
+    // Push Notifications for Citizen & Officer
+    addNotification({
+      role: 'citizen',
+      title: `Complaint Submitted (${mockId})`,
+      message: `Your complaint "${title.trim()}" has been received and logged under ID ${mockId}.`,
+      complaintId: mockId,
+      type: 'submitted',
+    });
+
+    addNotification({
+      role: 'officer',
+      title: `New Case Assigned (${mockId})`,
+      message: `A new complaint "${title.trim()}" in ${department} requires triage.`,
+      complaintId: mockId,
+      type: 'assigned',
     });
 
     setSubmittedData({
       id: mockId,
       title: title.trim(),
       department,
-      location: coordinates
-        ? `${manualLocation.trim()} (GPS: ${coordinates.lat}, ${coordinates.lng})`
-        : manualLocation.trim(),
-      date: formattedDate,
+      location: locationStr,
+      date: fullFormattedDate,
       photoPreview,
     });
 
@@ -269,6 +337,9 @@ export function CitizenReport() {
                 <span className="font-mono text-2xl font-bold text-slate-900">
                   {submittedData.id}
                 </span>
+                <p className="text-xs font-semibold text-blue-700 mt-1">
+                  Save this ID to track your complaint.
+                </p>
               </div>
               <div className="sm:text-right">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
@@ -337,12 +408,16 @@ export function CitizenReport() {
             </Button>
 
             <div className="flex flex-col sm:flex-row items-center gap-2.5">
+              <Link to={`/citizen/complaints/${submittedData.id}`} className="w-full sm:w-auto">
+                <Button variant="primary" size="md" className="w-full sm:w-auto">
+                  View Complaint
+                </Button>
+              </Link>
               <Link to="/citizen/dashboard" className="w-full sm:w-auto">
                 <Button variant="ghost" size="md" className="w-full sm:w-auto">
                   Back to Dashboard
                 </Button>
               </Link>
-
               <Link to="/citizen/complaints" className="w-full sm:w-auto">
                 <Button
                   variant="primary"

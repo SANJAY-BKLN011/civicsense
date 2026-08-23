@@ -21,63 +21,79 @@ import {
   CardFooter,
   Button,
   Badge,
+  type BadgeVariant,
 } from '../../components/ui';
-import { mockCitizenComplaints, type ComplaintData } from '../../data/mockComplaints';
+import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
 
 export function CitizenComplaintDetail() {
   const { id } = useParams<{ id: string }>();
+  const { getComplaint } = useOfficerComplaints();
   const normalizedId = id?.toUpperCase() || 'CIV-1024';
 
-  // Find complaint in mock dataset or provide dynamic fallback
-  const complaint: ComplaintData =
-    mockCitizenComplaints.find((c) => c.id.toUpperCase() === normalizedId) || {
-      id: normalizedId,
-      title: 'Civic Issue Case Record',
-      category: 'General Public Service',
-      department: 'Municipality / Sanitation',
-      submittedDate: 'Aug 20, 2026',
-      submittedTime: '10:30 AM',
-      status: 'IN_PROGRESS',
-      priority: 'High',
-      thumbnailIcon: '📋',
-      description: 'Complaint record tracking case ' + normalizedId + '. Field teams are addressing reported neighborhood condition.',
-      location: 'Ward 12 - Central District',
-      ward: 'Ward 12 - Central District',
-      coordinates: {
-        lat: 12.9716,
-        lng: 77.5946,
-      },
-      timeline: [
-        {
-          status: 'NEW',
-          title: 'Complaint Submitted',
-          date: 'Aug 20, 10:30 AM',
-          description: 'Complaint registered by citizen with photo evidence.',
+  const storeComplaint = getComplaint(normalizedId);
+
+  // Use complaint from reactive store if found
+  const complaint = storeComplaint
+    ? {
+        id: storeComplaint.id,
+        title: storeComplaint.title,
+        category: storeComplaint.category,
+        department: storeComplaint.department,
+        submittedDate: storeComplaint.submittedDate,
+        submittedTime: storeComplaint.submittedTime,
+        status: storeComplaint.status as BadgeVariant,
+        priority: storeComplaint.priority,
+        thumbnailIcon: storeComplaint.thumbnailIcon,
+        description: storeComplaint.description,
+        location: storeComplaint.location,
+        ward: storeComplaint.ward,
+        coordinates: storeComplaint.coordinates,
+        timeline: storeComplaint.timeline.map((t) => ({
+          status: storeComplaint.status as BadgeVariant,
+          title: t.title,
+          date: t.timestamp,
+          description: `${t.description} (Logged by ${t.author})`,
           completed: true,
+        })),
+        resolution: storeComplaint.resolution
+          ? {
+              date: storeComplaint.resolution.resolvedDate,
+              time: storeComplaint.resolution.resolvedTime,
+              officerName: storeComplaint.resolution.officerName,
+              officerBadge: 'OFF-SAN-402',
+              message: 'Complaint Successfully Resolved & Closed',
+              note: storeComplaint.resolution.note,
+              photoPreview: storeComplaint.resolution.photoPreview,
+            }
+          : undefined,
+      }
+    : {
+        id: normalizedId,
+        title: 'Civic Issue Case Record',
+        category: 'General Public Service',
+        department: 'Municipality / Sanitation',
+        submittedDate: 'Aug 20, 2026',
+        submittedTime: '10:30 AM',
+        status: 'IN_PROGRESS',
+        priority: 'High',
+        thumbnailIcon: '📋',
+        description: 'Complaint record tracking case ' + normalizedId + '. Field teams are addressing reported neighborhood condition.',
+        location: 'Ward 12 - Central District',
+        ward: 'Ward 12 - Central District',
+        coordinates: {
+          lat: 12.9716,
+          lng: 77.5946,
         },
-        {
-          status: 'ASSIGNED',
-          title: 'Assigned to Municipal Department',
-          date: 'Aug 20, 11:15 AM',
-          description: 'Assigned to responsible department triage queue.',
-          completed: true,
-        },
-        {
-          status: 'IN_PROGRESS',
-          title: 'Officer Working on Issue',
-          date: 'Aug 21, 09:00 AM',
-          description: 'Field technicians deployed to inspect and resolve on-site.',
-          completed: true,
-        },
-        {
-          status: 'RESOLVED',
-          title: 'Verified Resolution',
-          date: 'Pending completion',
-          description: 'Final closure verification.',
-          completed: false,
-        },
-      ],
-    };
+        timeline: [
+          {
+            status: 'NEW',
+            title: 'Complaint Submitted',
+            date: 'Aug 20, 10:30 AM',
+            description: 'Complaint registered by citizen with photo evidence.',
+            completed: true,
+          },
+        ],
+      };
 
   const getPriorityBadgeClass = (priority: string) => {
     switch (priority) {
@@ -131,7 +147,7 @@ export function CitizenComplaintDetail() {
           { label: 'My Complaints', href: '/citizen/complaints' },
           { label: complaint.id },
         ]}
-        badge={<Badge variant={complaint.status} size="md" dot />}
+        badge={<Badge variant={complaint.status as BadgeVariant} size="md" dot />}
         actions={
           <div className="flex items-center gap-2">
             <Link to="/citizen/complaints">
@@ -174,7 +190,7 @@ export function CitizenComplaintDetail() {
           </div>
 
           <div className="shrink-0">
-            <Badge variant={complaint.status} size="md" dot />
+            <Badge variant={complaint.status as BadgeVariant} size="md" dot />
           </div>
         </CardHeader>
 
