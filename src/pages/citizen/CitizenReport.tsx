@@ -17,10 +17,10 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useDepartments } from '../../context/DepartmentContext';
 import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
 import { useAdminComplaints } from '../../context/AdminComplaintsContext';
 import { useNotifications } from '../../context/NotificationContext';
-import { CIVIC_DEPARTMENTS } from '../../constants/departments';
 import {
   PageHeader,
   Card,
@@ -39,9 +39,20 @@ import {
 
 export function CitizenReport() {
   const { user } = useAuth();
+  const { departments, isLoading: isDeptsLoading, error: deptsError, refetchDepartments } = useDepartments();
   const { addComplaint: addOfficerComplaint } = useOfficerComplaints();
   const { addComplaint: addAdminComplaint } = useAdminComplaints();
   const { addNotification } = useNotifications();
+
+  // Department Options dynamically generated from backend / DepartmentContext
+  const departmentOptions = departments.map((d, index) => ({
+    value: d.id,
+    label: `${index + 1}. ${d.name}`,
+  }));
+  departmentOptions.push({
+    value: 'other',
+    label: `${departmentOptions.length + 1}. Other / Not Sure (Auto-triage)`,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form Field States
@@ -75,12 +86,6 @@ export function CitizenReport() {
     date: string;
     photoPreview: string | null;
   } | null>(null);
-
-  // Department Options imported from centralized constants
-  const departmentOptions = CIVIC_DEPARTMENTS.map((d, index) => ({
-    value: d.value,
-    label: `${index + 1}. ${d.label}`,
-  }));
 
   // Photo selection handler
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -597,21 +602,45 @@ export function CitizenReport() {
 
               {/* Department Selection */}
               <div className="space-y-1.5 text-left">
-                <Select
-                  id="department-select"
-                  label="Select Responsible Department"
-                  placeholder="-- Choose responsible department --"
-                  value={department}
-                  onChange={(e) => {
-                    setDepartment(e.target.value);
-                    if (errors.department) setErrors((prev) => ({ ...prev, department: '' }));
-                  }}
-                  options={departmentOptions}
-                  error={errors.department}
-                  required
-                />
+                {isDeptsLoading ? (
+                  <div className="p-3 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />
+                    <span>Loading departments...</span>
+                  </div>
+                ) : deptsError ? (
+                  <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2">
+                    <p className="font-semibold">{deptsError}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={refetchDepartments}
+                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                    >
+                      Retry Loading Departments
+                    </Button>
+                  </div>
+                ) : departments.length === 0 ? (
+                  <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                    No departments available.
+                  </div>
+                ) : (
+                  <Select
+                    id="department-select"
+                    label="Select Responsible Department"
+                    placeholder="-- Choose responsible department --"
+                    value={department}
+                    onChange={(e) => {
+                      setDepartment(e.target.value);
+                      if (errors.department) setErrors((prev) => ({ ...prev, department: '' }));
+                    }}
+                    options={departmentOptions}
+                    error={errors.department}
+                    required
+                  />
+                )}
 
-                {department === 'Other / Not Sure' && (
+                {(department === 'other' || department.includes('Other')) && (
                   <div className="p-2.5 rounded-md bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-start gap-2 animate-in fade-in">
                     <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                     <span>Our system will help route your complaint to the appropriate department.</span>
