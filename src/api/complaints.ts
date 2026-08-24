@@ -4,6 +4,10 @@ export interface CreateComplaintPayload {
   title: string;
   description: string;
   departmentId: string;
+  // Kept for compatibility with the existing Report Issue form.
+  // The current backend contract uses coordinates rather than these display-only fields.
+  location?: string;
+  ward?: string;
   latitude?: number | null;
   longitude?: number | null;
   photo?: File | null;
