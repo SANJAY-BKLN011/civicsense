@@ -21,6 +21,8 @@ import { useDepartments } from '../../context/DepartmentContext';
 import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
 import { useAdminComplaints } from '../../context/AdminComplaintsContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { createComplaintApi } from '../../api/complaints';
+import { USE_MOCK_DATA } from '../../api/client';
 import {
   PageHeader,
   Card,
@@ -39,7 +41,7 @@ import {
 
 export function CitizenReport() {
   const { user } = useAuth();
-  const { departments, isLoading: isDeptsLoading, error: deptsError, refetchDepartments } = useDepartments();
+  const { departments, isLoading: isDeptsLoading, error: deptsError, refetchDepartments, getDepartmentName } = useDepartments();
   const { addComplaint: addOfficerComplaint } = useOfficerComplaints();
   const { addComplaint: addAdminComplaint } = useAdminComplaints();
   const { addNotification } = useNotifications();
@@ -198,6 +200,7 @@ export function CitizenReport() {
   // Submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return; // Duplicate submission guard
     setFormError(null);
 
     if (!validateForm()) {
@@ -206,10 +209,7 @@ export function CitizenReport() {
     }
 
     setIsSubmitting(true);
-    // Simulate network latency
-    await new Promise((resolve) => setTimeout(resolve, 600));
 
-    const mockId = `CIV-${Math.floor(1000 + Math.random() * 9000)}`;
     const now = new Date();
     const formattedDate = now.toLocaleDateString('en-US', {
       month: 'short',
@@ -226,12 +226,44 @@ export function CitizenReport() {
       ? `${manualLocation.trim()} (GPS: ${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)})`
       : manualLocation.trim();
 
+    const selectedDeptName = getDepartmentName(department);
+
+    let finalId = `CIV-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    if (!USE_MOCK_DATA) {
+      const res = await createComplaintApi({
+        title: title.trim(),
+        description: description.trim(),
+        departmentId: department,
+        location: locationStr,
+        ward: ward || 'Ward 12 - Central District',
+        latitude: coordinates?.lat || null,
+        longitude: coordinates?.lng || null,
+        photo: photoFile,
+      });
+
+      if (!res.success) {
+        setIsSubmitting(false);
+        setFormError(
+          res.error || 'Unable to submit complaint to the server. Please check your network connection and try again.'
+        );
+        return;
+      }
+
+      if (res.data?.id) {
+        finalId = res.data.id;
+      }
+    } else {
+      // Simulate latency for mock mode
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+
     // Create Officer complaint record
     addOfficerComplaint({
-      id: mockId,
+      id: finalId,
       title: title.trim(),
       category: 'Sanitation & Waste',
-      department,
+      department: selectedDeptName,
       location: locationStr,
       ward: ward || 'Ward 12 - Central District',
       submittedDate: formattedDate,
@@ -256,10 +288,10 @@ export function CitizenReport() {
 
     // Create Admin complaint record
     addAdminComplaint({
-      id: mockId,
+      id: finalId,
       title: title.trim(),
       category: 'Sanitation & Waste',
-      department,
+      department: selectedDeptName,
       location: locationStr,
       ward: ward || 'Ward 12 - Central District',
       submittedDate: formattedDate,
@@ -277,24 +309,24 @@ export function CitizenReport() {
     // Push Notifications for Citizen & Officer
     addNotification({
       role: 'citizen',
-      title: `Complaint Submitted (${mockId})`,
-      message: `Your complaint "${title.trim()}" has been received and logged under ID ${mockId}.`,
-      complaintId: mockId,
+      title: `Complaint Submitted (${finalId})`,
+      message: `Your complaint "${title.trim()}" has been received and logged under ID ${finalId}.`,
+      complaintId: finalId,
       type: 'submitted',
     });
 
     addNotification({
       role: 'officer',
-      title: `New Case Assigned (${mockId})`,
-      message: `A new complaint "${title.trim()}" in ${department} requires triage.`,
-      complaintId: mockId,
+      title: `New Case Assigned (${finalId})`,
+      message: `A new complaint "${title.trim()}" in ${selectedDeptName} requires triage.`,
+      complaintId: finalId,
       type: 'assigned',
     });
 
     setSubmittedData({
-      id: mockId,
+      id: finalId,
       title: title.trim(),
-      department,
+      department: selectedDeptName,
       location: locationStr,
       date: fullFormattedDate,
       photoPreview,
