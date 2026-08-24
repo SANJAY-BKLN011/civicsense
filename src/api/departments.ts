@@ -1,10 +1,19 @@
 import { apiFetch } from './client';
 
+/**
+ * Department shape returned by GET /api/v1/departments.
+ * The backend returns the UUID in `id` and the display name in `name`.
+ */
 export interface Department {
   id: string;
   name: string;
-  code?: string;
-  description?: string;
+  description: string | null;
+  active?: boolean;
+  officeCount?: number;
+  officerCount?: number;
+  createdAt?: string;
+
+  // Optional demo-only metrics used by existing mock/admin UI.
   totalComplaints?: number;
   resolved?: number;
   inProgress?: number;
@@ -12,18 +21,12 @@ export interface Department {
   completionRate?: number;
 }
 
-export async function getDepartmentsApi() {
-  const result = await apiFetch<Department[]>('/departments', {
+/**
+ * Load active departments from the real backend.
+ * GET /api/v1/departments is public and returns { success, message, data }.
+ */
+export async function getDepartments() {
+  return apiFetch<Department[]>('/departments', {
     method: 'GET',
   });
-
-  // Fallback endpoint if departments are under /department
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<Department[]>('/department', {
-      method: 'GET',
-    });
-    return fallback;
-  }
-
-  return result;
 }
