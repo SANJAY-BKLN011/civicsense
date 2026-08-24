@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getDepartmentsApi, type Department } from '../api/departments';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getDepartments, type Department } from '../api/departments';
 import { USE_MOCK_DATA } from '../api/client';
 import { CIVIC_DEPARTMENTS } from '../constants/departments';
 
@@ -13,14 +13,17 @@ interface DepartmentContextType {
 
 const DepartmentContext = createContext<DepartmentContextType | undefined>(undefined);
 
-export const DEFAULT_MOCK_DEPARTMENTS: Department[] = CIVIC_DEPARTMENTS.filter(
-  (d) => !d.value.includes('Other / Not Sure')
-).map((d, index) => ({
-  id: `dept-00${index + 1}`,
-  name: d.value,
-  code: `DEPT-${index + 1}`,
-  description: `Municipal department managing ${d.value.toLowerCase()}.`,
-}));
+/** Existing frontend mock list, used only when demo/mock mode is explicitly enabled. */
+export const DEFAULT_MOCK_DEPARTMENTS: Department[] = CIVIC_DEPARTMENTS
+  .filter((d) => !d.value.includes('Other / Not Sure'))
+  .map((d, index) => ({
+    id: `dept-00${index + 1}`,
+    name: d.value,
+    code: `DEPT-${index + 1}`,
+    description: `Municipal department managing ${d.value.toLowerCase()}.`,
+  }));
+
+const DEPARTMENT_LOAD_ERROR = 'Unable to load departments. Please try again.';
 
 export function DepartmentProvider({ children }: { children: React.ReactNode }) {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -32,32 +35,39 @@ export function DepartmentProvider({ children }: { children: React.ReactNode }) 
     setError(null);
 
     if (USE_MOCK_DATA) {
-      await new Promise((res) => setTimeout(res, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       setDepartments(DEFAULT_MOCK_DEPARTMENTS);
       setIsLoading(false);
       return;
     }
 
-    const res = await getDepartmentsApi();
-    if (res.success && res.data) {
-      const dataList = Array.isArray(res.data) ? res.data : (res.data as any).departments || [];
-      setDepartments(dataList.length > 0 ? dataList : DEFAULT_MOCK_DEPARTMENTS);
+    const result = await getDepartments();
+
+    if (result.success && result.data) {
+      const backendDepartments = Array.isArray(result.data) ? result.data : [];
+      setDepartments(backendDepartments);
+      if (backendDepartments.length === 0) {
+        setError(null);
+      }
     } else {
-      setError(
-        res.error || 'Unable to load municipal departments from server. Please try again.'
-      );
+      // Important: never substitute mock data in real backend mode.
+      setDepartments([]);
+      setError(DEPARTMENT_LOAD_ERROR);
     }
+
     setIsLoading(false);
   };
 
   useEffect(() => {
-    fetchDepartments();
+    void fetchDepartments();
   }, []);
 
   const getDepartmentName = (idOrName: string): string => {
     if (!idOrName) return 'Unassigned Department';
-    const found = departments.find((d) => d.id === idOrName || d.name === idOrName);
-    return found ? found.name : idOrName;
+    const found = departments.find((department) =>
+      department.id === idOrName || department.name === idOrName
+    );
+    return found?.name || idOrName;
   };
 
   return (
