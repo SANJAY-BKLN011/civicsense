@@ -1,15 +1,31 @@
 import { apiFetch, setToken, removeToken } from './client';
 
+export interface AuthDepartmentProfile {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+export interface AuthOfficerProfile {
+  id: string;
+  department_id: string;
+  designation: string;
+  verification_status: string;
+  department?: AuthDepartmentProfile;
+}
+
 export interface AuthUserResponse {
   id: string;
   name: string;
   email: string;
   role: 'citizen' | 'officer' | 'admin';
-  phone?: string;
+  phone?: string | null;
   ward?: string;
   designation?: string;
   department?: string;
+  department_id?: string;
   badgeId?: string;
+  officer_profile?: AuthOfficerProfile | null;
 }
 
 export interface AuthResponseData {
@@ -29,19 +45,6 @@ export async function registerCitizenApi(data: {
     method: 'POST',
     body: JSON.stringify(data),
   });
-
-  // Fallback endpoint if register is under /auth/citizen/register
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<AuthResponseData>('/auth/citizen/register', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (fallback.success && fallback.data) {
-      const token = fallback.data.token || fallback.data.accessToken;
-      if (token) setToken(token);
-      return fallback;
-    }
-  }
 
   if (result.success && result.data) {
     const token = result.data.token || result.data.accessToken;
@@ -66,11 +69,9 @@ export async function loginApi(credentials: { email: string; password: string })
 }
 
 export async function getCurrentUserApi() {
-  const result = await apiFetch<{ user: AuthUserResponse } | AuthUserResponse>('/auth/me', {
+  return apiFetch<{ user: AuthUserResponse } | AuthUserResponse>('/auth/me', {
     method: 'GET',
   });
-
-  return result;
 }
 
 export async function logoutApi() {
