@@ -63,9 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await getCurrentUserApi();
         if (result.success && result.data) {
           const authUser: AuthUserResponse = (result.data as any).user || result.data;
-          if (authUser.role === 'citizen') setUser({ id: authUser.id, name: authUser.name, email: authUser.email, phone: authUser.phone, ward: authUser.ward || 'Ward 12 - Central District', role: 'citizen' });
-          else if (authUser.role === 'officer') setOfficerUser(mapOfficerUser(authUser));
-          else if (authUser.role === 'admin') setAdminUser({ id: authUser.id, name: authUser.name, email: authUser.email, designation: authUser.designation || 'Chief Administrator', role: 'admin' });
+          if (authUser.role === 'CITIZEN') setUser({ id: authUser.id, name: authUser.name, email: authUser.email, phone: authUser.phone, ward: authUser.ward || 'Ward 12 - Central District', role: 'citizen' });
+          else if (authUser.role === 'OFFICER') setOfficerUser(mapOfficerUser(authUser));
+          else if (authUser.role === 'ADMIN') setAdminUser({ id: authUser.id, name: authUser.name, email: authUser.email, designation: authUser.designation || 'Chief Administrator', role: 'admin' });
           setIsLoading(false);
           return;
         }
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await loginApi({ email: credentials.email, password: credentials.password });
       if (res.success && res.data) {
         const authUser: AuthUserResponse = res.data.user || (res.data as any);
-        if (authUser.role && authUser.role !== 'citizen') { setIsLoading(false); return { success: false, error: `Access denied. This account has role "${authUser.role.toUpperCase()}", not "CITIZEN".` }; }
+        if (authUser.role !== 'CITIZEN') { setIsLoading(false); return { success: false, error: `Access denied. This account has role "${authUser.role}", not "CITIZEN".` }; }
         const citizenData: CitizenUser = { id: authUser.id, name: authUser.name, email: authUser.email, phone: authUser.phone, ward: authUser.ward || 'Ward 12 - Central District', role: 'citizen' };
         setUser(citizenData); if (credentials.rememberMe) localStorage.setItem(CITIZEN_STORAGE_KEY, JSON.stringify(citizenData)); setIsLoading(false); return { success: true };
       }
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await loginApi({ email: credentials.email, password: credentials.password });
       if (res.success && res.data) {
         const authUser: AuthUserResponse = res.data.user || (res.data as any);
-        if (authUser.role && authUser.role !== 'officer') { setIsLoading(false); return { success: false, error: `Access denied. This account has role "${authUser.role.toUpperCase()}", not "OFFICER".` }; }
+        if (authUser.role !== 'OFFICER') { setIsLoading(false); return { success: false, error: `Access denied. This account has role "${authUser.role}", not "OFFICER".` }; }
         const officerData = mapOfficerUser(authUser); setOfficerUser(officerData); if (credentials.rememberMe) localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(officerData)); setIsLoading(false); return { success: true };
       }
       setIsLoading(false); return { success: false, error: res.error || 'Invalid officer credentials or unverified badge ID.' };
@@ -142,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await loginApi({ email: credentials.email, password: credentials.password });
       if (res.success && res.data) {
         const authUser: AuthUserResponse = res.data.user || (res.data as any);
-        if (authUser.role && authUser.role !== 'admin') { setIsLoading(false); return { success: false, error: `Access denied. This account has role "${authUser.role.toUpperCase()}", not "ADMIN".` }; }
+        if (authUser.role !== 'ADMIN') { setIsLoading(false); return { success: false, error: `Access denied. This account has role "${authUser.role}", not "ADMIN".` }; }
         const adminData: AdminUser = { id: authUser.id, name: authUser.name, email: authUser.email, designation: authUser.designation || 'Chief Municipal Administrator', role: 'admin' };
         setAdminUser(adminData); if (credentials.rememberMe) localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(adminData)); setIsLoading(false); return { success: true };
       }
@@ -158,4 +158,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={{ user, isAuthenticated: !!user, loginCitizen, registerCitizen, logout, requestPasswordReset, officerUser, isOfficerAuthenticated: !!officerUser, loginOfficer, logoutOfficer, adminUser, isAdminAuthenticated: !!adminUser, loginAdmin, logoutAdmin, isLoading }}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() { const context = useContext(AuthContext); if (!context) throw new Error('useAuth must be used within an AuthProvider'); return context; }
+export function useAuth() { const context = useContext(AuthContext); if (!context) throw new Error('useAuth must be used within AuthProvider'); return context; }
