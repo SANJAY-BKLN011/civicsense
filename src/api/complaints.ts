@@ -1,80 +1,200 @@
-import { apiFetch } from './client';
+import { API_BASE_URL, getToken, apiFetch } from './client';
 
 export interface CreateComplaintPayload {
   title: string;
   description: string;
   departmentId: string;
-  // Kept for compatibility with the existing Report Issue form.
-  // The current backend contract uses coordinates rather than these display-only fields.
-  location?: string;
+  location: string;
   ward?: string;
   latitude?: number | null;
   longitude?: number | null;
   photo?: File | null;
 }
 
+export interface ComplaintTimelineItem {
+  id?: string;
+  status?: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  author: string;
+  type?: string;
+}
+
+export interface ComplaintResolutionData {
+  resolvedDate: string;
+  resolvedTime: string;
+  officerName: string;
+  note: string;
+  photoPreview?: string;
+}
+
 export interface ComplaintResponseData {
   id: string;
-  complaint_number?: string;
   title: string;
-  description?: string;
-  photo_url?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
+  category?: string;
+  departmentId?: string;
+  department?: string;
+  location: string;
+  ward?: string;
+  submittedDate?: string;
+  submittedTime?: string;
+  createdAt?: string;
+  citizenName?: string;
+  status: string;
   priority?: string;
-  priority_reason?: string;
-  status?: string;
-  department?: {
-    id: string;
-    name: string;
-    description?: string | null;
-  };
-  created_at?: string;
-  updated_at?: string;
+  thumbnailIcon?: string;
+  description: string;
+  coordinates?: { lat: number; lng: number } | null;
+  photoUrl?: string;
+  timeline?: ComplaintTimelineItem[];
+  resolution?: ComplaintResolutionData;
 }
 
-/** Convert an image File to a data URI because the backend accepts JSON/base64,
- * not multipart FormData, for complaint photos. */
-async function fileToDataUri(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') resolve(reader.result);
-      else reject(new Error('Unable to read the selected image.'));
-    };
-    reader.onerror = () => reject(new Error('Unable to read the selected image.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * POST /api/v1/complaints
- * Backend contract uses snake_case department_id and accepts an optional
- * base64/data-URI photo in the JSON body.
- */
 export async function createComplaintApi(payload: CreateComplaintPayload) {
-  let photo: string | null = null;
+  const token = getToken();
 
-  if (payload.photo) {
+  // If a photo File object is attached, use FormData multipart upload
+  if (payload.photo && payload.photo instanceof File) {
+    const formData = new FormData();
+    formData.append('title', payload.title);
+    formData.append('description', payload.description);
+    formData.append('departmentId', payload.departmentId);
+    formData.append('location', payload.location);
+    if (payload.ward) formData.append('ward', payload.ward);
+    if (payload.latitude) formData.append('latitude', payload.latitude.toString());
+    if (payload.longitude) formData.append('longitude', payload.longitude.toString());
+    formData.append('photo', payload.photo);
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
-      photo = await fileToDataUri(payload.photo);
-    } catch (error) {
+      const url = `${API_BASE_URL.replace(/\/$/, '')}/complaints`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.message || data.error || `HTTP Error ${response.status}`,
+        };
+      }
+
       return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to read the selected image.',
+        success: true,
+        data: data.data || data,
+        message: data.message,
       };
+    } catch (err: any) {
+      // Try fallback endpoint /complaint
+      try {
+        const fallbackUrl = `${API_BASE_URL.replace(/\/$/, '')}/complaint`;
+        const response = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          return {
+            success: false,
+            error: data.message || data.error || `HTTP Error ${response.status}`,
+          };
+        }
+        return {
+          success: true,
+          data: data.data || data,
+          message: data.message,
+        };
+      } catch (fallbackErr: any) {
+        return {
+          success: false,
+          error: err.message || 'Network error while submitting complaint.',
+        };
+      }
     }
   }
 
-  return apiFetch<ComplaintResponseData>('/complaints', {
+  // JSON submission if no file attached
+  const result = await apiFetch<ComplaintResponseData>('/complaints', {
     method: 'POST',
     body: JSON.stringify({
       title: payload.title,
       description: payload.description,
-      department_id: payload.departmentId,
-      latitude: payload.latitude ?? null,
-      longitude: payload.longitude ?? null,
-      photo,
+      departmentId: payload.departmentId,
+      location: payload.location,
+      ward: payload.ward,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
     }),
   });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData>('/complaint', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: payload.title,
+        description: payload.description,
+        departmentId: payload.departmentId,
+        location: payload.location,
+        ward: payload.ward,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+      }),
+    });
+    return fallback;
+  }
+
+  return result;
+}
+
+export async function getMyComplaintsApi(params?: { search?: string; status?: string }) {
+  const queryParts: string[] = [];
+  if (params?.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+  if (params?.status && params.status !== 'ALL') queryParts.push(`status=${encodeURIComponent(params.status)}`);
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+  const result = await apiFetch<ComplaintResponseData[]>(`/complaints/my${queryString}`, {
+    method: 'GET',
+  });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData[]>(`/complaints${queryString}`, {
+      method: 'GET',
+    });
+
+    if (!fallback.success && fallback.error?.includes('404')) {
+      const citizenFallback = await apiFetch<ComplaintResponseData[]>(`/citizen/complaints${queryString}`, {
+        method: 'GET',
+      });
+      return citizenFallback;
+    }
+    return fallback;
+  }
+
+  return result;
+}
+
+export async function getComplaintByIdApi(id: string) {
+  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}`, {
+    method: 'GET',
+  });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData>(`/complaint/${id}`, {
+      method: 'GET',
+    });
+    return fallback;
+  }
+
+  return result;
 }
