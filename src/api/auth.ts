@@ -14,11 +14,14 @@ export interface AuthOfficerProfile {
   department?: AuthDepartmentProfile;
 }
 
+// The backend Prisma Role enum is serialized as uppercase values.
+export type BackendRole = 'CITIZEN' | 'OFFICER' | 'ADMIN';
+
 export interface AuthUserResponse {
   id: string;
   name: string;
   email: string;
-  role: 'citizen' | 'officer' | 'admin';
+  role: BackendRole;
   phone?: string | null;
   ward?: string;
   designation?: string;
