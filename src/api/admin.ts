@@ -74,7 +74,6 @@ export async function getAdminStatsApi() {
       newComplaints: summary.by_status.new,
       inProgressComplaints: summary.by_status.in_progress,
       resolvedComplaints: summary.by_status.resolved,
-      // These metrics are not exposed by the current admin summary endpoint.
       totalCitizens: null,
       totalOfficers: null,
       totalDepartments: summary.by_department.length,
@@ -87,20 +86,21 @@ export async function getAdminStatsApi() {
   };
 }
 
-/**
- * The backend currently exposes admin complaint summaries, but not an
- * admin-wide complaint listing endpoint. Do not fall back to /complaints:
- * that endpoint has different authorization/ownership semantics.
- */
+/** Backend currently has no admin-wide complaint listing endpoint. */
 export async function getAdminComplaintsApi(_params?: {
   search?: string;
   status?: string;
   priority?: string;
   department?: string;
-}) {
+}): Promise<{
+  success: false;
+  data: never[];
+  error: string;
+}> {
   return {
-    success: true as const,
-    data: [] as never[],
+    success: false,
+    data: [],
+    error: 'Admin complaint listing endpoint is not available yet.',
   };
 }
 
