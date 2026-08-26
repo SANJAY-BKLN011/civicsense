@@ -251,3 +251,135 @@ export async function getComplaintByIdApi(id: string) {
     data: result.data ? normalizeComplaint((result.data as any).complaint || result.data) : result.data,
   };
 }
+
+// Officer Complaints API extensions (I5)
+export async function getOfficerComplaintsApi(params?: { search?: string; status?: string; priority?: string }) {
+  const queryParts: string[] = [];
+  if (params?.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
+  if (params?.status && params.status !== 'ALL') queryParts.push(`status=${encodeURIComponent(params.status)}`);
+  if (params?.priority && params.priority !== 'ALL') queryParts.push(`priority=${encodeURIComponent(params.priority)}`);
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+  const result = await apiFetch<ComplaintResponseData[]>(`/officer/complaints${queryString}`, {
+    method: 'GET',
+  });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData[]>(`/complaints/assigned${queryString}`, {
+      method: 'GET',
+    });
+    if (!fallback.success && fallback.error?.includes('404')) {
+      const allFallback = await apiFetch<ComplaintResponseData[]>(`/complaints${queryString}`, {
+        method: 'GET',
+      });
+      return allFallback;
+    }
+    return fallback;
+  }
+
+  return result;
+}
+
+export async function updateComplaintStatusApi(id: string, status: string) {
+  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData>(`/officer/complaints/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    if (!fallback.success && fallback.error?.includes('404')) {
+      const putFallback = await apiFetch<ComplaintResponseData>(`/complaints/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      return putFallback;
+    }
+    return fallback;
+  }
+
+  return result;
+}
+
+export async function addComplaintProgressApi(id: string, note: string) {
+  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}/progress`, {
+    method: 'POST',
+    body: JSON.stringify({ note, description: note }),
+  });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData>(`/complaints/${id}/timeline`, {
+      method: 'POST',
+      body: JSON.stringify({ note, description: note }),
+    });
+    if (!fallback.success && fallback.error?.includes('404')) {
+      const officerFallback = await apiFetch<ComplaintResponseData>(`/officer/complaints/${id}/progress`, {
+        method: 'POST',
+        body: JSON.stringify({ note, description: note }),
+      });
+      return officerFallback;
+    }
+    return fallback;
+  }
+
+  return result;
+}
+
+export async function resolveComplaintApi(id: string, note: string, photo?: File | null) {
+  const token = getToken();
+
+  if (photo && photo instanceof File) {
+    const formData = new FormData();
+    formData.append('note', note);
+    formData.append('resolutionNote', note);
+    formData.append('photo', photo);
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const url = `${API_BASE_URL.replace(/\/$/, '')}/complaints/${id}/resolve`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.message || data.error || `HTTP Error ${response.status}`,
+        };
+      }
+      return {
+        success: true,
+        data: data.data || data,
+        message: data.message,
+      };
+    } catch (err: any) {
+      console.warn('FormData resolve failed, attempting JSON fallback', err);
+    }
+  }
+
+  // JSON fallback if no file or multipart failed
+  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ note, resolutionNote: note }),
+  });
+
+  if (!result.success && result.error?.includes('404')) {
+    const fallback = await apiFetch<ComplaintResponseData>(`/officer/complaints/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ note, resolutionNote: note }),
+    });
+    return fallback;
+  }
+
+  return result;
+}

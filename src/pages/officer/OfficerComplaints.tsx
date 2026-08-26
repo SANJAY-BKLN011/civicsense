@@ -1,43 +1,45 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Search,
   MapPin,
   Calendar,
   Building,
   ChevronRight,
-  X,
-  ClipboardList,
-  Filter,
   RotateCcw,
+  X,
+  Shield,
+  Filter,
 } from 'lucide-react';
 import {
   PageHeader,
   Card,
-  CardTitle,
   CardContent,
   Button,
   Badge,
   Input,
-  Select,
-  EmptyState,
   LoadingState,
+  ErrorMessage,
   type BadgeVariant,
 } from '../../components/ui';
 import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
-import type { OfficerComplaintData } from '../../data/mockOfficerComplaints';
+import { getOfficerComplaintsApi, type ComplaintResponseData } from '../../api/complaints';
+import { USE_MOCK_DATA } from '../../api/client';
 
 type FilterStatus = 'ALL' | 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
 type PriorityFilter = 'ALL' | 'Low' | 'Medium' | 'High' | 'Critical';
 
 export function OfficerComplaints() {
-  const navigate = useNavigate();
-  const { complaints, resetToDefault } = useOfficerComplaints();
+  const { complaints: mockStoreComplaints, resetToDefault } = useOfficerComplaints();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('ALL');
-  const [uiState, setUiState] = useState<'normal' | 'loading' | 'empty'>('normal');
+  const [uiState, setUiState] = useState<'normal' | 'loading' | 'empty' | 'error'>('normal');
+
+  const [apiComplaints, setApiComplaints] = useState<ComplaintResponseData[]>([]);
+  const [isLoading, setIsLoading] = useState(!USE_MOCK_DATA);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const filterTabs: { id: FilterStatus; label: string }[] = [
     { id: 'ALL', label: 'All' },
@@ -47,12 +49,50 @@ export function OfficerComplaints() {
     { id: 'RESOLVED', label: 'Resolved' },
   ];
 
-  const getFiltered = (): OfficerComplaintData[] => {
+  const fetchRealOfficerComplaints = async () => {
+    setIsLoading(true);
+    setApiError(null);
+
+    const res = await getOfficerComplaintsApi({
+      search: searchTerm,
+      status: statusFilter,
+      priority: priorityFilter,
+    });
+
+    if (res.success && res.data) {
+      const list = Array.isArray(res.data) ? res.data : (res.data as any).complaints || [];
+      setApiComplaints(list);
+    } else {
+      setApiError(res.error || 'Unable to load assigned complaints from server.');
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    if (!USE_MOCK_DATA) {
+      fetchRealOfficerComplaints();
+    }
+  }, [searchTerm, statusFilter, priorityFilter]);
+
+  const activeComplaints = !USE_MOCK_DATA
+    ? apiComplaints.map((c) => ({
+        id: c.id,
+        title: c.title,
+        department: c.department || 'Municipality / Sanitation',
+        location: c.location,
+        submittedDate: c.submittedDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Aug 20, 2026'),
+        status: (c.status || 'NEW') as BadgeVariant,
+        priority: c.priority || 'Medium',
+        thumbnailIcon: c.thumbnailIcon || '📌',
+        description: c.description,
+      }))
+    : mockStoreComplaints;
+
+  const getFiltered = () => {
     if (uiState === 'empty') return [];
-    return complaints.filter((item) => {
+    return activeComplaints.filter((item) => {
       const matchStatus = statusFilter === 'ALL' || item.status === statusFilter;
       const matchPriority = priorityFilter === 'ALL' || item.priority === priorityFilter;
-
       const q = searchTerm.toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -90,14 +130,16 @@ export function OfficerComplaints() {
           { label: 'Assigned Complaints' },
         ]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetToDefault}
-            leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-          >
-            Reset Mock Data
-          </Button>
+          USE_MOCK_DATA ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetToDefault}
+              leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+            >
+              Reset Mock Data
+            </Button>
+          ) : undefined
         }
       />
 
@@ -105,7 +147,7 @@ export function OfficerComplaints() {
       <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold uppercase text-slate-500 mr-1">Preview State:</span>
-          {(['normal', 'loading', 'empty'] as const).map((s) => (
+          {(['normal', 'loading', 'empty', 'error'] as const).map((s) => (
             <Button
               key={s}
               size="sm"
@@ -116,43 +158,63 @@ export function OfficerComplaints() {
             </Button>
           ))}
         </div>
-        <span className="text-xs text-slate-500 font-mono">{complaints.length} Total Complaints Loaded</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 bg-slate-100 px-2.5 py-1 rounded border border-slate-300">
+          {!USE_MOCK_DATA ? 'LIVE BACKEND CONNECTION' : 'DEMO MODE'}
+        </span>
       </div>
 
-      {uiState === 'loading' && <LoadingState title="Loading assigned complaints..." />}
-
-      {uiState === 'empty' && (
-        <EmptyState
-          icon={<ClipboardList className="w-6 h-6 text-slate-400" />}
-          title="No Complaints Assigned"
-          description="You currently have no complaints assigned to your officer profile."
-          action={
-            <Link to="/officer/department">
-              <Button size="sm" variant="secondary">View Department Queue</Button>
-            </Link>
-          }
+      {/* LOADING STATE */}
+      {(uiState === 'loading' || (isLoading && !USE_MOCK_DATA)) && (
+        <LoadingState
+          title="Loading assigned complaints..."
+          description="Retrieving case queue from municipal officer server."
         />
       )}
 
-      {uiState === 'normal' && (
-        <>
-          {/* Filter Toolbar */}
-          <Card className="bg-slate-50/80 shadow-2xs">
-            <CardContent className="p-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Search Bar */}
-                <div className="sm:col-span-2">
+      {/* ERROR STATE */}
+      {(uiState === 'error' || (apiError && !USE_MOCK_DATA)) && (
+        <div className="space-y-4">
+          <ErrorMessage
+            severity="error"
+            title="Unable to load assigned complaints"
+            message={apiError || 'Failed to retrieve assigned complaints from server. Please check your connection.'}
+          />
+          {!USE_MOCK_DATA && (
+            <div className="text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchRealOfficerComplaints}
+                leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+              >
+                Retry Loading Complaints
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONTENT STATE */}
+      {uiState !== 'loading' && uiState !== 'error' && (!isLoading || USE_MOCK_DATA) && !apiError && (
+        <div className="space-y-6">
+          {/* Controls Bar */}
+          <Card className="shadow-2xs">
+            <CardContent className="p-4 sm:p-5 space-y-4 text-left">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                {/* Search */}
+                <div className="relative flex-1">
                   <Input
-                    placeholder="Search by Complaint ID, title, or location..."
+                    placeholder="Search by Complaint ID, Title, or Location..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    leftIcon={<Search className="w-4 h-4" />}
+                    leftIcon={<Search className="w-4 h-4 text-slate-400" />}
                     rightIcon={
                       searchTerm ? (
                         <button
                           type="button"
                           onClick={() => setSearchTerm('')}
-                          className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                          className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+                          title="Clear search"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -161,161 +223,123 @@ export function OfficerComplaints() {
                   />
                 </div>
 
-                {/* Priority Selector */}
-                <div>
-                  <Select
+                {/* Priority Filter */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Filter className="w-4 h-4 text-slate-400" />
+                  <select
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value as PriorityFilter)}
-                    options={[
-                      { value: 'ALL', label: 'All Priorities' },
-                      { value: 'Critical', label: 'Critical Priority' },
-                      { value: 'High', label: 'High Priority' },
-                      { value: 'Medium', label: 'Medium Priority' },
-                      { value: 'Low', label: 'Low Priority' },
-                    ]}
-                  />
+                    className="text-xs bg-slate-50 border border-slate-300 rounded-md px-3 py-2 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="ALL">All Priorities</option>
+                    <option value="Critical">Critical Priority</option>
+                    <option value="High">High Priority</option>
+                    <option value="Medium">Medium Priority</option>
+                    <option value="Low">Low Priority</option>
+                  </select>
                 </div>
               </div>
 
               {/* Status Filter Tabs */}
-              <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-200/70">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-semibold text-slate-500 mr-1 flex items-center gap-1">
-                    <Filter className="w-3.5 h-3.5" />
-                    Status:
-                  </span>
+              <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 flex-wrap">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
                   {filterTabs.map((tab) => {
-                    const count =
-                      tab.id === 'ALL'
-                        ? complaints.length
-                        : complaints.filter((c) => c.status === tab.id).length;
-
+                    const isActive = statusFilter === tab.id;
                     return (
                       <button
                         key={tab.id}
                         type="button"
                         onClick={() => setStatusFilter(tab.id)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                          statusFilter === tab.id
-                            ? 'bg-slate-900 text-white shadow-2xs'
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-slate-800 text-white shadow-2xs'
                             : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                         }`}
                       >
-                        <span>{tab.label}</span>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                            statusFilter === tab.id ? 'bg-slate-700 text-slate-200' : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {count}
-                        </span>
+                        {tab.label}
                       </button>
                     );
                   })}
                 </div>
 
-                {(searchTerm || statusFilter !== 'ALL' || priorityFilter !== 'ALL') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setStatusFilter('ALL');
-                      setPriorityFilter('ALL');
-                    }}
-                    className="text-xs text-blue-700 font-semibold hover:underline cursor-pointer ml-auto"
-                  >
-                    Reset Filters
-                  </button>
-                )}
+                <span className="text-xs text-slate-500 font-medium">
+                  Showing {filtered.length} of {activeComplaints.length} assigned complaints
+                </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Results Summary */}
-          <div className="text-xs text-slate-500 flex items-center justify-between px-1">
-            <span>Showing <strong className="text-slate-900 font-bold">{filtered.length}</strong> assigned complaint{filtered.length === 1 ? '' : 's'}</span>
-          </div>
-
-          {/* Complaints List */}
+          {/* List Cards */}
           {filtered.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-lg border border-dashed border-slate-300 space-y-3">
-              <Search className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">No matching complaints found</p>
-              <p className="text-xs text-slate-500">Try adjusting your search keywords, priority filter, or status selection.</p>
+            <div className="p-10 text-center bg-white rounded-lg border border-dashed border-slate-300 space-y-3">
+              <Shield className="w-8 h-8 text-slate-400 mx-auto" />
+              <p className="text-base font-bold text-slate-900">No complaints found</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No assigned cases match your selected filter criteria.
+              </p>
               <Button
-                variant="outline"
                 size="sm"
+                variant="outline"
                 onClick={() => {
                   setSearchTerm('');
                   setStatusFilter('ALL');
                   setPriorityFilter('ALL');
                 }}
+                leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
               >
-                Clear Filters
+                Reset Search & Filters
               </Button>
             </div>
           ) : (
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               {filtered.map((c) => (
-                <div
+                <Card
                   key={c.id}
-                  onClick={() => navigate(`/officer/complaints/${c.id}`)}
-                  className="p-4 sm:p-5 rounded-lg bg-white border border-slate-200 hover:border-slate-400 hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') navigate(`/officer/complaints/${c.id}`);
-                  }}
+                  className="hover:border-slate-400 transition-all shadow-2xs text-left"
                 >
-                  <div className="flex items-start sm:items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                      {c.thumbnailIcon}
-                    </div>
-
-                    <div className="space-y-1.5 text-left">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-300">
                           {c.id}
                         </span>
-                        <span
-                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${getPriorityStyle(c.priority)}`}
-                        >
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${getPriorityStyle(c.priority)}`}>
                           {c.priority} Priority
                         </span>
                       </div>
 
-                      <CardTitle className="text-base text-slate-900 group-hover:text-slate-700 transition-colors">
-                        {c.title}
-                      </CardTitle>
+                      <h4 className="font-bold text-slate-900 text-base">{c.title}</h4>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-0.5">
-                        <span className="flex items-center gap-1 font-medium text-slate-600">
-                          <Building className="w-3.5 h-3.5 text-slate-400" />
-                          {c.department}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          {c.location}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {c.submittedDate}
-                        </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-500 pt-1">
+                        <div className="flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="line-clamp-1">{c.department}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="line-clamp-1">{c.location}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>Submitted: {c.submittedDate}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                    <Badge variant={c.status as BadgeVariant} size="md" dot />
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                </div>
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <Badge variant={c.status} size="md" dot />
+                      <Link to={`/officer/complaints/${c.id}`}>
+                        <Button size="sm" variant="primary" rightIcon={<ChevronRight className="w-3.5 h-3.5" />}>
+                          Manage Case
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
