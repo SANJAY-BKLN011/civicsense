@@ -131,9 +131,7 @@ export function CitizenReport() {
     setLocationError(null);
 
     if (!('geolocation' in navigator)) {
-      setLocationError('Geolocation is not supported by your browser. Using mock GPS location.');
-      setCoordinates({ lat: 12.9716, lng: 77.5946 });
-      if (!manualLocation) setManualLocation('Near Central Market, Main Road');
+      setLocationError('Geolocation is not supported by your browser.');
       setIsLocating(false);
       return;
     }
@@ -144,21 +142,14 @@ export function CitizenReport() {
           lat: parseFloat(position.coords.latitude.toFixed(6)),
           lng: parseFloat(position.coords.longitude.toFixed(6)),
         });
-        if (!manualLocation) {
-          setManualLocation('Current GPS Location Marker');
-        }
         setIsLocating(false);
       },
       (err) => {
         setLocationError(
           err.code === 1
-            ? 'Location permission denied. Mock coordinates have been applied for testing.'
-            : 'Unable to acquire precise GPS signal. Mock coordinates applied.'
+            ? 'Location permission denied. Please enter address manually.'
+            : 'Unable to acquire precise GPS signal. Please enter address manually.'
         );
-        setCoordinates({ lat: 12.9716, lng: 77.5946 });
-        if (!manualLocation) {
-          setManualLocation('Central District Hub, Ward 12');
-        }
         setIsLocating(false);
       },
       { timeout: 8000, enableHighAccuracy: true }
@@ -226,6 +217,7 @@ export function CitizenReport() {
     const selectedDeptName = getDepartmentName(department);
 
     let finalId = `CIV-${Math.floor(1000 + Math.random() * 9000)}`;
+    let finalLocation = locationStr;
 
     if (!USE_MOCK_DATA) {
       const res = await createComplaintApi({
@@ -249,6 +241,10 @@ export function CitizenReport() {
 
       if (res.data?.id) {
         finalId = res.data.id;
+      }
+
+      if (res.data?.location) {
+        finalLocation = res.data.location;
       }
     } else {
       // Simulate latency for mock mode
@@ -308,22 +304,22 @@ export function CitizenReport() {
         complaintId: finalId,
         type: 'submitted',
       });
-    }
 
-    // Push Citizen Submission Notification
-    addNotification({
-      role: 'citizen',
-      title: `Complaint Submitted (${finalId})`,
-      message: `Your complaint "${title.trim()}" has been received and logged under ID ${finalId}.`,
-      complaintId: finalId,
-      type: 'submitted',
-    });
+      // Push Citizen Submission Notification (only in mock/demo mode)
+      addNotification({
+        role: 'citizen',
+        title: `Complaint Submitted (${finalId})`,
+        message: `Your complaint "${title.trim()}" has been received and logged under ID ${finalId}.`,
+        complaintId: finalId,
+        type: 'submitted',
+      });
+    }
 
     setSubmittedData({
       id: finalId,
       title: title.trim(),
       department: selectedDeptName,
-      location: locationStr,
+      location: finalLocation,
       date: fullFormattedDate,
       photoPreview,
     });
