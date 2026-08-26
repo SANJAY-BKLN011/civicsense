@@ -1,85 +1,60 @@
 import { apiFetch } from './client';
 
+export type BackendNotificationType =
+  | 'COMPLAINT_SUBMITTED'
+  | 'COMPLAINT_ASSIGNED'
+  | 'STATUS_CHANGED'
+  | 'COMPLAINT_RESOLVED'
+  | 'OFFICER_APPROVED'
+  | 'OFFICER_REJECTED';
+
 export interface BackendNotificationItem {
   id: string;
-  recipientId?: string;
-  role?: 'citizen' | 'officer' | 'admin';
+  recipient_user_id: string;
+  complaint_id: string | null;
   title: string;
   message: string;
-  isRead: boolean;
-  complaintId?: string;
-  type?: 'submitted' | 'assigned' | 'in_progress' | 'resolved' | 'update' | 'high_priority';
-  createdAt?: string;
-  timestamp?: string;
+  type: BackendNotificationType | string;
+  is_read: boolean;
+  created_at: string;
 }
 
-export async function getNotificationsApi() {
-  const result = await apiFetch<BackendNotificationItem[]>('/notifications', {
-    method: 'GET',
-  });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<BackendNotificationItem[]>('/notifications/my', {
-      method: 'GET',
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const userFallback = await apiFetch<BackendNotificationItem[]>('/user/notifications', {
-        method: 'GET',
-      });
-      return userFallback;
-    }
-    return fallback;
-  }
-
-  return result;
+export interface NotificationsResponse {
+  notifications: BackendNotificationItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
+/** GET /api/v1/notifications — authenticated user's notifications. */
+export async function getNotificationsApi(params?: { page?: number; limit?: number; isRead?: boolean }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(Math.max(1, params.page)));
+  if (params?.limit) query.set('limit', String(Math.min(50, Math.max(1, params.limit))));
+  if (params?.isRead !== undefined) query.set('is_read', String(params.isRead));
+
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiFetch<NotificationsResponse>(`/notifications${suffix}`, { method: 'GET' });
+}
+
+/** GET /api/v1/notifications/unread-count */
 export async function getUnreadCountApi() {
-  const result = await apiFetch<{ count: number }>('/notifications/unread-count', {
-    method: 'GET',
-  });
-
-  return result;
+  return apiFetch<{ count: number }>('/notifications/unread-count', { method: 'GET' });
 }
 
+/** PATCH /api/v1/notifications/:notificationId/read */
 export async function markNotificationReadApi(id: string) {
-  const result = await apiFetch<{ success: boolean }>(`/notifications/${id}/read`, {
+  return apiFetch<BackendNotificationItem>(`/notifications/${encodeURIComponent(id)}/read`, {
     method: 'PATCH',
   });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<{ success: boolean }>(`/notifications/${id}/read`, {
-      method: 'PUT',
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const postFallback = await apiFetch<{ success: boolean }>(`/notifications/${id}/read`, {
-        method: 'POST',
-      });
-      return postFallback;
-    }
-    return fallback;
-  }
-
-  return result;
 }
 
+/** PATCH /api/v1/notifications/read-all */
 export async function markAllNotificationsReadApi() {
-  const result = await apiFetch<{ success: boolean }>('/notifications/read-all', {
+  return apiFetch<{ updated_count: number }>('/notifications/read-all', {
     method: 'PATCH',
   });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<{ success: boolean }>('/notifications/read-all', {
-      method: 'PUT',
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const postFallback = await apiFetch<{ success: boolean }>('/notifications/read-all', {
-        method: 'POST',
-      });
-      return postFallback;
-    }
-    return fallback;
-  }
-
-  return result;
 }
