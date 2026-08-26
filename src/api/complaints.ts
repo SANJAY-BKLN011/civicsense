@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE_URL } from './client';
+import { apiFetch, API_BASE_URL, getToken } from './client';
 
 export interface CreateComplaintPayload {
   title: string;
@@ -86,25 +86,23 @@ function formatDateTime(value?: string | Date | null): { date?: string; time?: s
 function normalizeStatusHistory(history: any[] | undefined, fallbackStatus: string, fallbackCreatedAt?: string) {
   if (!history?.length) {
     const formatted = formatDateTime(fallbackCreatedAt);
-    return [
-      {
-        status: fallbackStatus,
-        title: 'Complaint Submitted',
-        description: 'Issue reported by citizen and logged into the central complaint system.',
-        timestamp: formatted.date && formatted.time ? `${formatted.date} ${formatted.time}` : 'Complaint registered',
-        author: 'CivicSense System',
-      },
-    ];
+    return [{
+      status: fallbackStatus,
+      title: 'Complaint Submitted',
+      description: 'Issue reported by citizen and logged into the central complaint system.',
+      timestamp: formatted.date && formatted.time ? `${formatted.date} ${formatted.time}` : 'Complaint registered',
+      author: 'CivicSense System',
+    }];
   }
 
   return history.map((item) => {
-    const formatted = formatDateTime(item.created_at);
+    const formatted = formatDateTime(item.created_at || item.createdAt);
     return {
       id: item.id,
       status: item.status,
       title: item.status === 'NEW' ? 'Complaint Submitted' : `Status: ${formatPriority(item.status)}`,
       description: item.note || 'Complaint status updated.',
-      timestamp: formatted.date && formatted.time ? `${formatted.date} ${formatted.time}` : String(item.created_at || ''),
+      timestamp: formatted.date && formatted.time ? `${formatted.date} ${formatted.time}` : String(item.created_at || item.createdAt || ''),
       author: 'CivicSense System',
     };
   });
@@ -130,7 +128,7 @@ function normalizeComplaint(raw: any): ComplaintResponseData {
         return {
           resolvedDate: resolvedDateTime.date || 'Resolved',
           resolvedTime: resolvedDateTime.time || '',
-          officerName: raw.resolution.officerName || 'Assigned Officer',
+          officerName: raw.resolution.officerName || raw.resolution.officer_name || 'Assigned Officer',
           note: raw.resolution.note || 'Complaint resolved.',
           photoPreview: normalizeMediaUrl(raw.resolution.photo_url || raw.resolution.photoPreview),
         };
@@ -154,10 +152,7 @@ function normalizeComplaint(raw: any): ComplaintResponseData {
     priority: formatPriority(raw.priority),
     thumbnailIcon: raw.thumbnailIcon || '📌',
     description: raw.description || '',
-    coordinates:
-      latitude != null && longitude != null
-        ? { lat: Number(latitude), lng: Number(longitude) }
-        : null,
+    coordinates: latitude != null && longitude != null ? { lat: Number(latitude), lng: Number(longitude) } : null,
     photoUrl: normalizeMediaUrl(raw.photo_url || raw.photoUrl),
     timeline: normalizeStatusHistory(raw.status_history || raw.timeline, raw.status || 'NEW', createdAt),
     resolution,
@@ -176,21 +171,13 @@ async function fileToDataUri(file: File): Promise<string> {
   });
 }
 
-/**
- * POST /api/v1/complaints
- * Backend expects JSON with snake_case department_id and an optional base64/data-URI photo.
- */
 export async function createComplaintApi(payload: CreateComplaintPayload) {
   let photo: string | null = null;
-
   if (payload.photo) {
     try {
       photo = await fileToDataUri(payload.photo);
     } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unable to read the selected image.',
-      };
+      return { success: false, error: error instanceof Error ? error.message : 'Unable to read the selected image.' };
     }
   }
 
@@ -207,179 +194,112 @@ export async function createComplaintApi(payload: CreateComplaintPayload) {
   });
 
   if (!result.success) return result;
-
-  return {
-    ...result,
-    data: result.data ? normalizeComplaint((result.data as any).complaint || result.data) : result.data,
-  };
+  return { ...result, data: result.data ? normalizeComplaint((result.data as any).complaint || result.data) : result.data };
 }
 
-/**
- * GET /api/v1/complaints/my
- * The backend supports status/department filters and pagination. Search remains client-side.
- */
 export async function getMyComplaintsApi(params?: { search?: string; status?: string }) {
   const queryParts: string[] = ['limit=50'];
-  if (params?.status && params.status !== 'ALL') {
-    queryParts.push(`status=${encodeURIComponent(params.status)}`);
-  }
-
-  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  if (params?.status && params.status !== 'ALL') queryParts.push(`status=${encodeURIComponent(params.status)}`);
+  const queryString = `?${queryParts.join('&')}`;
   const result = await apiFetch<any>(`/complaints/my${queryString}`, { method: 'GET' });
-
   if (!result.success) return result;
 
   const payload = result.data as any;
   const rawComplaints = Array.isArray(payload) ? payload : payload?.complaints || [];
+  return { ...result, data: rawComplaints.map(normalizeComplaint) };
+}
 
+export async function getComplaintByIdApi(id: string) {
+  const result = await apiFetch<any>(`/complaints/${id}`, { method: 'GET' });
+  if (!result.success) return result;
+  return { ...result, data: result.data ? normalizeComplaint((result.data as any).complaint || result.data) : result.data };
+}
+
+/**
+ * I5: Officer complaint list.
+ * Backend supports status, priority, office_id, date filters and pagination.
+ * Search is intentionally client-side because the officer endpoint does not accept a search parameter.
+ */
+export async function getOfficerComplaintsApi(params?: {
+  search?: string;
+  status?: string;
+  priority?: string;
+  officeId?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const queryParts: string[] = [];
+  if (params?.status && params.status !== 'ALL') queryParts.push(`status=${encodeURIComponent(params.status)}`);
+  if (params?.priority && params.priority !== 'ALL') queryParts.push(`priority=${encodeURIComponent(params.priority)}`);
+  if (params?.officeId) queryParts.push(`office_id=${encodeURIComponent(params.officeId)}`);
+  if (params?.page) queryParts.push(`page=${Math.max(1, params.page)}`);
+  if (params?.limit) queryParts.push(`limit=${Math.min(100, Math.max(1, params.limit))}`);
+
+  const queryString = queryParts.length ? `?${queryParts.join('&')}` : '';
+  const result = await apiFetch<any>(`/officer/complaints${queryString}`, { method: 'GET' });
+  if (!result.success) return result;
+
+  const payload = result.data as any;
+  const rawComplaints = Array.isArray(payload) ? payload : payload?.complaints || [];
   return {
     ...result,
     data: rawComplaints.map(normalizeComplaint),
+    pagination: payload?.pagination,
+  };
+}
+
+/** I5: Officer-only status update endpoint. */
+export async function updateComplaintStatusApi(id: string, status: string) {
+  return apiFetch<ComplaintResponseData>(`/officer/complaints/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+/**
+ * Kept for compatibility with existing UI imports.
+ * The current backend has no officer progress/timeline endpoint, so do not issue a fake request.
+ */
+export async function addComplaintProgressApi(_id: string, _note: string) {
+  return {
+    success: false,
+    error: 'Progress updates are not supported by the current backend API.',
   };
 }
 
 /**
- * GET /api/v1/complaints/:complaintId
+ * I5: Officer resolution endpoint.
+ * Backend expects JSON with a base64/data-URI photo, not multipart FormData.
  */
-export async function getComplaintByIdApi(id: string) {
-  const result = await apiFetch<any>(`/complaints/${id}`, { method: 'GET' });
-
-  if (!result.success) return result;
-
-  return {
-    ...result,
-    data: result.data ? normalizeComplaint((result.data as any).complaint || result.data) : result.data,
-  };
-}
-
-// Officer Complaints API extensions (I5)
-export async function getOfficerComplaintsApi(params?: { search?: string; status?: string; priority?: string }) {
-  const queryParts: string[] = [];
-  if (params?.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
-  if (params?.status && params.status !== 'ALL') queryParts.push(`status=${encodeURIComponent(params.status)}`);
-  if (params?.priority && params.priority !== 'ALL') queryParts.push(`priority=${encodeURIComponent(params.priority)}`);
-  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
-
-  const result = await apiFetch<ComplaintResponseData[]>(`/officer/complaints${queryString}`, {
-    method: 'GET',
-  });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<ComplaintResponseData[]>(`/complaints/assigned${queryString}`, {
-      method: 'GET',
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const allFallback = await apiFetch<ComplaintResponseData[]>(`/complaints${queryString}`, {
-        method: 'GET',
-      });
-      return allFallback;
-    }
-    return fallback;
-  }
-
-  return result;
-}
-
-export async function updateComplaintStatusApi(id: string, status: string) {
-  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
-  });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<ComplaintResponseData>(`/officer/complaints/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const putFallback = await apiFetch<ComplaintResponseData>(`/complaints/${id}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ status }),
-      });
-      return putFallback;
-    }
-    return fallback;
-  }
-
-  return result;
-}
-
-export async function addComplaintProgressApi(id: string, note: string) {
-  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}/progress`, {
-    method: 'POST',
-    body: JSON.stringify({ note, description: note }),
-  });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<ComplaintResponseData>(`/complaints/${id}/timeline`, {
-      method: 'POST',
-      body: JSON.stringify({ note, description: note }),
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const officerFallback = await apiFetch<ComplaintResponseData>(`/officer/complaints/${id}/progress`, {
-        method: 'POST',
-        body: JSON.stringify({ note, description: note }),
-      });
-      return officerFallback;
-    }
-    return fallback;
-  }
-
-  return result;
-}
-
 export async function resolveComplaintApi(id: string, note: string, photo?: File | null) {
-  const token = getToken();
-
-  if (photo && photo instanceof File) {
-    const formData = new FormData();
-    formData.append('note', note);
-    formData.append('resolutionNote', note);
-    formData.append('photo', photo);
-
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    try {
-      const url = `${API_BASE_URL.replace(/\/$/, '')}/complaints/${id}/resolve`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        return {
-          success: false,
-          error: data.message || data.error || `HTTP Error ${response.status}`,
-        };
-      }
-      return {
-        success: true,
-        data: data.data || data,
-        message: data.message,
-      };
-    } catch (err: any) {
-      console.warn('FormData resolve failed, attempting JSON fallback', err);
-    }
+  if (!photo) {
+    return {
+      success: false,
+      error: 'A resolution photo is required to resolve a complaint.',
+    };
   }
 
-  // JSON fallback if no file or multipart failed
-  const result = await apiFetch<ComplaintResponseData>(`/complaints/${id}/resolve`, {
+  let photoDataUri: string;
+  try {
+    photoDataUri = await fileToDataUri(photo);
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unable to read the resolution photo.',
+    };
+  }
+
+  const result = await apiFetch<ComplaintResponseData>(`/officer/complaints/${encodeURIComponent(id)}/resolve`, {
     method: 'POST',
-    body: JSON.stringify({ note, resolutionNote: note }),
+    body: JSON.stringify({
+      note,
+      resolution_note: note,
+      photo: photoDataUri,
+    }),
   });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<ComplaintResponseData>(`/officer/complaints/${id}/resolve`, {
-      method: 'POST',
-      body: JSON.stringify({ note, resolutionNote: note }),
-    });
-    return fallback;
-  }
 
   return result;
 }
+
+// Keep a direct token reference available for callers that already depended on this module.
+export { getToken };
