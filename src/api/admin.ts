@@ -2,83 +2,86 @@ import { apiFetch } from './client';
 import type { ComplaintResponseData } from './complaints';
 
 export interface AdminStatsData {
-  totalComplaints: number;
-  newComplaints: number;
-  inProgressComplaints: number;
-  resolvedComplaints: number;
-  totalCitizens: number;
-  totalOfficers: number;
-  totalDepartments: number;
+  total_complaints: number;
+  by_status: {
+    new: number;
+    assigned: number;
+    in_progress: number;
+    resolved: number;
+  };
+  by_department: Array<{
+    department_id: string;
+    department_name: string;
+    count: number;
+  }>;
 }
 
 export interface AdminOfficerData {
   id: string;
+  user_id: string;
   name: string;
-  badgeId: string;
-  department: string;
-  designation: string;
   email: string;
-  phone: string;
-  assignedWard: string;
-  status: 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
-  activeCasesCount: number;
-  resolvedCasesCount: number;
+  phone: string | null;
+  designation: string;
+  department: {
+    id: string;
+    name: string;
+    description: string | null;
+    active: boolean;
+  };
+  verification_status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminOfficersResponse {
+  officers: AdminOfficerData[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 export async function getAdminStatsApi() {
-  const result = await apiFetch<AdminStatsData>('/admin/stats', {
+  const result = await apiFetch<AdminStatsData>('/admin/complaints/summary', {
     method: 'GET',
   });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<AdminStatsData>('/admin/dashboard', {
-      method: 'GET',
-    });
-    if (!fallback.success && fallback.error?.includes('404')) {
-      const statsFallback = await apiFetch<AdminStatsData>('/stats', {
-        method: 'GET',
-      });
-      return statsFallback;
-    }
-    return fallback;
-  }
-
   return result;
 }
 
-export async function getAdminComplaintsApi(params?: { search?: string; status?: string; priority?: string; department?: string }) {
+/**
+ * Admin-wide complaint listing is not currently exposed by the backend.
+ * Keep this helper out of the live dashboard until a dedicated endpoint exists.
+ */
+export async function getAdminComplaintsApi(_params?: {
+  search?: string;
+  status?: string;
+  priority?: string;
+  department?: string;
+}) {
+  return {
+    success: false as const,
+    error: 'Admin complaint listing endpoint is not available yet.',
+  };
+}
+
+export async function getAdminOfficersApi(params?: {
+  page?: number;
+  limit?: number;
+  verification_status?: string;
+  department_id?: string;
+}) {
   const queryParts: string[] = [];
-  if (params?.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
-  if (params?.status && params.status !== 'ALL') queryParts.push(`status=${encodeURIComponent(params.status)}`);
-  if (params?.priority && params.priority !== 'ALL') queryParts.push(`priority=${encodeURIComponent(params.priority)}`);
-  if (params?.department && params.department !== 'ALL') queryParts.push(`department=${encodeURIComponent(params.department)}`);
-  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  if (params?.page) queryParts.push(`page=${params.page}`);
+  if (params?.limit) queryParts.push(`limit=${params.limit}`);
+  if (params?.verification_status) queryParts.push(`verification_status=${encodeURIComponent(params.verification_status)}`);
+  if (params?.department_id) queryParts.push(`department_id=${encodeURIComponent(params.department_id)}`);
 
-  const result = await apiFetch<ComplaintResponseData[]>(`/admin/complaints${queryString}`, {
+  const queryString = queryParts.length ? `?${queryParts.join('&')}` : '';
+  return apiFetch<AdminOfficersResponse>(`/admin/officers${queryString}`, {
     method: 'GET',
   });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<ComplaintResponseData[]>(`/complaints${queryString}`, {
-      method: 'GET',
-    });
-    return fallback;
-  }
-
-  return result;
-}
-
-export async function getAdminOfficersApi() {
-  const result = await apiFetch<AdminOfficerData[]>('/admin/officers', {
-    method: 'GET',
-  });
-
-  if (!result.success && result.error?.includes('404')) {
-    const fallback = await apiFetch<AdminOfficerData[]>('/officers', {
-      method: 'GET',
-    });
-    return fallback;
-  }
-
-  return result;
 }
