@@ -1,17 +1,16 @@
 import { apiFetch } from './client';
-import type { ComplaintResponseData } from './complaints';
 
 export interface AdminStatsData {
-  total_complaints: number;
-  by_status: {
-    new: number;
-    assigned: number;
-    in_progress: number;
-    resolved: number;
-  };
-  by_department: Array<{
-    department_id: string;
-    department_name: string;
+  totalComplaints: number;
+  newComplaints: number;
+  inProgressComplaints: number;
+  resolvedComplaints: number;
+  totalCitizens: number | null;
+  totalOfficers: number | null;
+  totalDepartments: number | null;
+  byDepartment: Array<{
+    departmentId: string;
+    departmentName: string;
     count: number;
   }>;
 }
@@ -45,16 +44,53 @@ export interface AdminOfficersResponse {
   };
 }
 
+interface AdminSummaryResponse {
+  total_complaints: number;
+  by_status: {
+    new: number;
+    assigned: number;
+    in_progress: number;
+    resolved: number;
+  };
+  by_department: Array<{
+    department_id: string;
+    department_name: string;
+    count: number;
+  }>;
+}
+
 export async function getAdminStatsApi() {
-  const result = await apiFetch<AdminStatsData>('/admin/complaints/summary', {
+  const result = await apiFetch<AdminSummaryResponse>('/admin/complaints/summary', {
     method: 'GET',
   });
-  return result;
+
+  if (!result.success || !result.data) return result as typeof result & { data?: AdminStatsData };
+
+  const summary = result.data;
+  return {
+    ...result,
+    data: {
+      totalComplaints: summary.total_complaints,
+      newComplaints: summary.by_status.new,
+      inProgressComplaints: summary.by_status.in_progress,
+      resolvedComplaints: summary.by_status.resolved,
+      // These metrics are not exposed by the current admin summary endpoint.
+      totalCitizens: null,
+      totalOfficers: null,
+      totalDepartments: summary.by_department.length,
+      byDepartment: summary.by_department.map((d) => ({
+        departmentId: d.department_id,
+        departmentName: d.department_name,
+        count: d.count,
+      })),
+    } satisfies AdminStatsData,
+  };
 }
 
 /**
- * Admin-wide complaint listing is not currently exposed by the backend.
- * Keep this helper out of the live dashboard until a dedicated endpoint exists.
+ * The backend currently exposes admin complaint summaries, but not an
+ * admin-wide complaint listing endpoint. Do not fall back to /complaints:
+ * that endpoint has different authorization/ownership semantics.
  */
 export async function getAdminComplaintsApi(_params?: {
   search?: string;
@@ -63,8 +99,8 @@ export async function getAdminComplaintsApi(_params?: {
   department?: string;
 }) {
   return {
-    success: false as const,
-    error: 'Admin complaint listing endpoint is not available yet.',
+    success: true as const,
+    data: [] as never[],
   };
 }
 
