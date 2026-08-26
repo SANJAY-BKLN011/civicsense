@@ -7,7 +7,6 @@ import { USE_MOCK_DATA } from '../../api/client';
 
 export function AdminOfficers() {
   const { officers: mockOfficers } = useAdminComplaints();
-
   const [apiOfficers, setApiOfficers] = useState<AdminOfficerData[]>([]);
   const [isLoading, setIsLoading] = useState(!USE_MOCK_DATA);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -15,10 +14,9 @@ export function AdminOfficers() {
   const fetchRealOfficers = async () => {
     setIsLoading(true);
     setApiError(null);
-
     const res = await getAdminOfficersApi();
     if (res.success && res.data) {
-      const list = Array.isArray(res.data) ? res.data : (res.data as any).officers || [];
+      const list = Array.isArray(res.data) ? res.data : res.data.officers || [];
       setApiOfficers(list);
     } else {
       setApiError(
@@ -31,24 +29,22 @@ export function AdminOfficers() {
   };
 
   useEffect(() => {
-    if (!USE_MOCK_DATA) {
-      fetchRealOfficers();
-    }
+    if (!USE_MOCK_DATA) fetchRealOfficers();
   }, []);
 
   const officersList = !USE_MOCK_DATA
     ? apiOfficers.map((o) => ({
         id: o.id,
         name: o.name,
-        badgeId: o.badgeId || 'OFF-402',
-        department: o.department || 'Municipality / Sanitation',
+        badgeId: o.user_id,
+        department: o.department.name,
         designation: o.designation || 'Field Officer',
-        email: o.email || `${o.name.toLowerCase().replace(/\s+/g, '.')}@civicsense.gov`,
-        phone: o.phone || '+91 98765 43210',
-        assignedWard: o.assignedWard || 'Ward 12 - Central District',
-        status: o.status === 'INACTIVE' ? 'Inactive' : 'Active',
-        activeCasesCount: o.activeCasesCount ?? 4,
-        resolvedCasesCount: o.resolvedCasesCount ?? 12,
+        email: o.email,
+        phone: o.phone || 'Not provided',
+        assignedWard: 'Not assigned',
+        status: o.verification_status === 'APPROVED' ? 'Active' : 'Pending',
+        activeCasesCount: 0,
+        resolvedCasesCount: 0,
       }))
     : mockOfficers.map((o) => ({
         id: o.id,
@@ -76,19 +72,13 @@ export function AdminOfficers() {
         ]}
       />
 
-      {/* LOADING STATE */}
       {!USE_MOCK_DATA && isLoading && (
         <LoadingState title="Loading officer roster..." description="Connecting to municipal admin server." />
       )}
 
-      {/* ERROR STATE */}
       {!USE_MOCK_DATA && apiError && (
         <div className="space-y-4">
-          <ErrorMessage
-            severity="error"
-            title="Unable to load officers"
-            message={apiError}
-          />
+          <ErrorMessage severity="error" title="Unable to load officers" message={apiError} />
           <div className="text-center">
             <Button variant="outline" size="sm" onClick={fetchRealOfficers} leftIcon={<RotateCcw className="w-3.5 h-3.5" />}>
               Retry Loading Officers
@@ -97,7 +87,6 @@ export function AdminOfficers() {
         </div>
       )}
 
-      {/* CONTENT STATE */}
       {(!isLoading || USE_MOCK_DATA) && !apiError && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 text-left">
           {officersList.map((off) => (
@@ -113,13 +102,7 @@ export function AdminOfficers() {
                       <p className="text-slate-500">{off.designation}</p>
                     </div>
                   </div>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                      off.status === 'Active'
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        : 'bg-slate-100 text-slate-600 border-slate-200'
-                    }`}
-                  >
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${off.status === 'Active' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
                     {off.status}
                   </span>
                 </div>
