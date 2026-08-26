@@ -11,8 +11,10 @@ import {
   FileText,
   X,
   Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { useNotifications, type NotificationItem } from '../../context/NotificationContext';
+import { USE_MOCK_DATA } from '../../api/client';
 
 interface NotificationPanelProps {
   role: 'citizen' | 'officer';
@@ -29,8 +31,11 @@ export function NotificationPanel({ role, align = 'right' }: NotificationPanelPr
     officerNotifications,
     citizenUnreadCount,
     officerUnreadCount,
+    isLoading,
+    error,
     markAsRead,
     markAllAsRead,
+    refetchNotifications,
   } = useNotifications();
 
   const notifications = role === 'citizen' ? citizenNotifications : officerNotifications;
@@ -51,8 +56,8 @@ export function NotificationPanel({ role, align = 'right' }: NotificationPanelPr
     };
   }, [isOpen]);
 
-  const handleNotificationClick = (item: NotificationItem) => {
-    markAsRead(item.id);
+  const handleNotificationClick = async (item: NotificationItem) => {
+    await markAsRead(item.id);
     setIsOpen(false);
 
     if (item.complaintId) {
@@ -142,7 +147,26 @@ export function NotificationPanel({ role, align = 'right' }: NotificationPanelPr
 
           {/* Notifications List */}
           <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-            {notifications.length === 0 ? (
+            {!USE_MOCK_DATA && isLoading ? (
+              <div className="p-8 text-center space-y-2">
+                <Clock className="w-6 h-6 text-blue-600 animate-spin mx-auto" />
+                <p className="text-xs font-semibold text-slate-700">Loading notifications...</p>
+              </div>
+            ) : !USE_MOCK_DATA && error ? (
+              <div className="p-6 text-center space-y-3">
+                <AlertCircle className="w-6 h-6 text-rose-600 mx-auto" />
+                <p className="text-xs font-bold text-slate-900">Unable to load notifications</p>
+                <p className="text-[11px] text-slate-500">{error}</p>
+                <button
+                  type="button"
+                  onClick={refetchNotifications}
+                  className="text-xs font-semibold text-blue-700 hover:underline flex items-center justify-center gap-1 mx-auto"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="p-8 text-center space-y-2">
                 <Inbox className="w-8 h-8 text-slate-300 mx-auto" />
                 <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
@@ -178,9 +202,11 @@ export function NotificationPanel({ role, align = 'right' }: NotificationPanelPr
                     <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{item.message}</p>
                     <div className="flex items-center justify-between pt-0.5">
                       <span className="text-[10px] text-slate-400 font-mono">{item.timestamp}</span>
-                      <span className="text-[11px] font-mono text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-                        {item.complaintId}
-                      </span>
+                      {item.complaintId && (
+                        <span className="text-[11px] font-mono text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                          {item.complaintId}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

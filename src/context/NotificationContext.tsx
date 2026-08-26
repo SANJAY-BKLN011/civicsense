@@ -1,4 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  getNotificationsApi,
+  markNotificationReadApi,
+  markAllNotificationsReadApi,
+  type BackendNotificationItem,
+} from '../api/notifications';
+import { USE_MOCK_DATA } from '../api/client';
 
 export interface NotificationItem {
   id: string;
@@ -95,10 +102,13 @@ interface NotificationContextType {
   officerNotifications: NotificationItem[];
   citizenUnreadCount: number;
   officerUnreadCount: number;
-  markAsRead: (id: string) => void;
-  markAllAsRead: (role?: 'citizen' | 'officer') => void;
+  isLoading: boolean;
+  error: string | null;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: (role?: 'citizen' | 'officer') => Promise<void>;
   addNotification: (item: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => void;
   resetNotifications: () => void;
+  refetchNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -116,13 +126,51 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return initialNotifications;
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-    } catch (e) {
-      console.warn('Failed to save notifications to localStorage', e);
+  const [isLoading, setIsLoading] = useState(!USE_MOCK_DATA);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRealNotifications = async () => {
+    if (USE_MOCK_DATA) return;
+    setIsLoading(true);
+    setError(null);
+
+    const res = await getNotificationsApi();
+    if (res.success && res.data) {
+      const list: BackendNotificationItem[] = Array.isArray(res.data)
+        ? res.data
+        : (res.data as any).notifications || [];
+
+      const mapped: NotificationItem[] = list.map((b) => ({
+        id: b.id,
+        role: b.role === 'officer' ? 'officer' : 'citizen',
+        title: b.title,
+        message: b.message,
+        timestamp: b.timestamp || (b.createdAt ? new Date(b.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'),
+        isRead: b.isRead,
+        complaintId: b.complaintId || '',
+        type: b.type || 'update',
+      }));
+
+      setNotifications(mapped);
+    } else {
+      setError(res.error || 'Unable to load notifications from server.');
     }
-  }, [notifications]);
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    if (!USE_MOCK_DATA) {
+      fetchRealNotifications();
+      const interval = setInterval(fetchRealNotifications, 20000);
+      return () => clearInterval(interval);
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      } catch (e) {
+        console.warn('Failed to save notifications to localStorage', e);
+      }
+    }
+  }, []);
 
   const citizenNotifications = notifications.filter((n) => n.role === 'citizen');
   const officerNotifications = notifications.filter((n) => n.role === 'officer');
@@ -130,13 +178,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const citizenUnreadCount = citizenNotifications.filter((n) => !n.isRead).length;
   const officerUnreadCount = officerNotifications.filter((n) => !n.isRead).length;
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
+    // Optimistic local update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
+
+    if (!USE_MOCK_DATA) {
+      await markNotificationReadApi(id);
+    }
   };
 
-  const markAllAsRead = (role?: 'citizen' | 'officer') => {
+  const markAllAsRead = async (role?: 'citizen' | 'officer') => {
+    // Optimistic local update
     setNotifications((prev) =>
       prev.map((n) => {
         if (!role || n.role === role) {
@@ -145,6 +199,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return n;
       })
     );
+
+    if (!USE_MOCK_DATA) {
+      await markAllNotificationsReadApi();
+    }
   };
 
   const addNotification = (item: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => {
@@ -174,10 +232,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         officerNotifications,
         citizenUnreadCount,
         officerUnreadCount,
+        isLoading,
+        error,
         markAsRead,
         markAllAsRead,
         addNotification,
         resetNotifications,
+        refetchNotifications: fetchRealNotifications,
       }}
     >
       {children}
