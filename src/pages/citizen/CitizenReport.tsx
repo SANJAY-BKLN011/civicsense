@@ -222,10 +222,7 @@ export function CitizenReport() {
     });
     const fullFormattedDate = `${formattedDate}, ${formattedTime}`;
 
-    const locationStr = coordinates
-      ? `${manualLocation.trim()} (GPS: ${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)})`
-      : manualLocation.trim();
-
+    const locationStr = manualLocation.trim();
     const selectedDeptName = getDepartmentName(department);
 
     let finalId = `CIV-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -256,71 +253,70 @@ export function CitizenReport() {
     } else {
       // Simulate latency for mock mode
       await new Promise((resolve) => setTimeout(resolve, 600));
+
+      // Local mock store context additions (only in mock/demo mode)
+      addOfficerComplaint({
+        id: finalId,
+        title: title.trim(),
+        category: 'Sanitation & Waste',
+        department: selectedDeptName,
+        location: locationStr,
+        ward: ward || 'Ward 12 - Central District',
+        submittedDate: formattedDate,
+        submittedTime: formattedTime,
+        citizenName: user?.name || 'Citizen',
+        status: 'NEW',
+        priority: 'Medium',
+        thumbnailIcon: '📌',
+        description: description.trim(),
+        coordinates: coordinates || { lat: 12.9716, lng: 77.5946 },
+        timeline: [
+          {
+            id: `tl-sub-${Date.now()}`,
+            timestamp: `${formattedDate} at ${formattedTime}`,
+            title: 'Complaint Submitted',
+            description: 'Issue reported by citizen and logged into central triage system.',
+            author: user?.name || 'Citizen',
+            type: 'submission',
+          },
+        ],
+      });
+
+      addAdminComplaint({
+        id: finalId,
+        title: title.trim(),
+        category: 'Sanitation & Waste',
+        department: selectedDeptName,
+        location: locationStr,
+        ward: ward || 'Ward 12 - Central District',
+        submittedDate: formattedDate,
+        submittedTime: formattedTime,
+        citizenName: user?.name || 'Citizen',
+        assignedOfficer: 'Unassigned',
+        assignedOfficerId: '',
+        status: 'NEW',
+        priority: 'Medium',
+        thumbnailIcon: '📌',
+        description: description.trim(),
+        coordinates: coordinates || { lat: 12.9716, lng: 77.5946 },
+      });
+
+      addNotification({
+        role: 'officer',
+        title: `New Case Logged (${finalId})`,
+        message: `A new complaint "${title.trim()}" in ${selectedDeptName} requires triage.`,
+        complaintId: finalId,
+        type: 'submitted',
+      });
     }
 
-    // Create Officer complaint record
-    addOfficerComplaint({
-      id: finalId,
-      title: title.trim(),
-      category: 'Sanitation & Waste',
-      department: selectedDeptName,
-      location: locationStr,
-      ward: ward || 'Ward 12 - Central District',
-      submittedDate: formattedDate,
-      submittedTime: formattedTime,
-      citizenName: user?.name || 'Sanjay Patel',
-      status: 'NEW',
-      priority: 'Medium',
-      thumbnailIcon: '📌',
-      description: description.trim(),
-      coordinates: coordinates || { lat: 12.9716, lng: 77.5946 },
-      timeline: [
-        {
-          id: `tl-sub-${Date.now()}`,
-          timestamp: `${formattedDate} at ${formattedTime}`,
-          title: 'Complaint Submitted',
-          description: 'Issue reported by citizen and logged into central triage system.',
-          author: user?.name || 'Sanjay Patel',
-          type: 'submission',
-        },
-      ],
-    });
-
-    // Create Admin complaint record
-    addAdminComplaint({
-      id: finalId,
-      title: title.trim(),
-      category: 'Sanitation & Waste',
-      department: selectedDeptName,
-      location: locationStr,
-      ward: ward || 'Ward 12 - Central District',
-      submittedDate: formattedDate,
-      submittedTime: formattedTime,
-      citizenName: user?.name || 'Sanjay Patel',
-      assignedOfficer: 'Officer Sanjay Kumar',
-      assignedOfficerId: 'OFF-SAN-402',
-      status: 'NEW',
-      priority: 'Medium',
-      thumbnailIcon: '📌',
-      description: description.trim(),
-      coordinates: coordinates || { lat: 12.9716, lng: 77.5946 },
-    });
-
-    // Push Notifications for Citizen & Officer
+    // Push Citizen Submission Notification
     addNotification({
       role: 'citizen',
       title: `Complaint Submitted (${finalId})`,
       message: `Your complaint "${title.trim()}" has been received and logged under ID ${finalId}.`,
       complaintId: finalId,
       type: 'submitted',
-    });
-
-    addNotification({
-      role: 'officer',
-      title: `New Case Assigned (${finalId})`,
-      message: `A new complaint "${title.trim()}" in ${selectedDeptName} requires triage.`,
-      complaintId: finalId,
-      type: 'assigned',
     });
 
     setSubmittedData({
