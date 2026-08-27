@@ -199,10 +199,12 @@ export function OfficerLogin() {
               Sign In to Officer Portal
             </Button>
 
-            <div className="text-xs text-center text-slate-500">
-              Not an officer?{' '}
-              <Link to="/citizen/login" className="text-blue-700 font-semibold hover:underline">
-                Citizen Login →
+            <div className="text-xs text-center text-slate-600 flex items-center justify-between gap-2 w-full pt-3 border-t border-slate-100">
+              <Link to="/officer/register" className="text-blue-700 font-semibold hover:underline">
+                Register as Officer →
+              </Link>
+              <Link to="/citizen/login" className="text-slate-500 hover:underline">
+                Citizen Login
               </Link>
             </div>
           </CardFooter>

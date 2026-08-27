@@ -57,6 +57,25 @@ export async function registerCitizenApi(data: {
   return result;
 }
 
+export async function registerOfficerApi(data: {
+  name: string;
+  email: string;
+  department_id: string;
+  designation: string;
+  password: string;
+}) {
+  return apiFetch<AuthResponseData>('/auth/register/officer', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: data.name,
+      email: data.email,
+      password: data.password,
+      department_id: data.department_id,
+      designation: data.designation,
+    }),
+  });
+}
+
 export async function loginApi(credentials: { email: string; password: string }) {
   const result = await apiFetch<AuthResponseData>('/auth/login', {
     method: 'POST',
