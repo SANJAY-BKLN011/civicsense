@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Mail, Building, RotateCcw, CheckCircle, XCircle, UserCheck, Lock, Unlock } from 'lucide-react';
 import { PageHeader, Card, CardContent, Button, LoadingState, ErrorMessage } from '../../components/ui';
 import { useAdminComplaints } from '../../context/AdminComplaintsContext';
-import { getAdminOfficersApi, approveOfficerApi, rejectOfficerApi, blockUserApi, unblockUserApi, type AdminOfficerData } from '../../api/admin';
+import { getAdminOfficersApi, approveOfficerApi, rejectOfficerApi, blockOfficerApi, unblockOfficerApi, type AdminOfficerData } from '../../api/admin';
 import { USE_MOCK_DATA } from '../../api/client';
 
 export function AdminOfficers() {
@@ -73,21 +73,23 @@ export function AdminOfficers() {
     setLoadingActionId(null);
   };
 
-  const handleToggleBlock = async (userId: string, userName: string, isBlocked: boolean) => {
+  const handleToggleBlock = async (officerId: string, userName: string, isBlocked: boolean) => {
     setActionError(null);
     setActionSuccess(null);
+    setLoadingActionId(officerId);
 
     if (!USE_MOCK_DATA) {
-      const res = isBlocked ? await unblockUserApi(userId) : await blockUserApi(userId);
+      const res = isBlocked ? await unblockOfficerApi(officerId) : await blockOfficerApi(officerId);
       if (!res.success) {
         setActionError(res.error || `Unable to change block status for "${userName}".`);
       } else {
-        setActionSuccess(`User "${userName}" status updated successfully.`);
+        setActionSuccess(`Officer "${userName}" ${isBlocked ? 'unblocked' : 'blocked'} successfully.`);
         await fetchRealOfficers();
       }
     } else {
-      setActionSuccess(`Demo Mode: User "${userName}" ${isBlocked ? 'unblocked' : 'blocked'}.`);
+      setActionSuccess(`Demo Mode: Officer "${userName}" ${isBlocked ? 'unblocked' : 'blocked'}.`);
     }
+    setLoadingActionId(null);
   };
 
   const officersList = !USE_MOCK_DATA
@@ -103,7 +105,7 @@ export function AdminOfficers() {
         verification_status: o.verification_status,
         rejection_reason: o.rejection_reason,
         status: o.verification_status === 'APPROVED' ? 'Active' : o.verification_status === 'REJECTED' ? 'Rejected' : 'Pending',
-        isBlocked: false,
+        isBlocked: Boolean(o.is_blocked),
       }))
     : mockOfficers.map((o) => ({
         id: o.id,
@@ -244,10 +246,11 @@ export function AdminOfficers() {
                       size="sm"
                       variant="ghost"
                       className="text-[11px] text-slate-600 hover:text-slate-900"
-                      onClick={() => handleToggleBlock(off.user_id, off.name, off.isBlocked)}
+                      onClick={() => handleToggleBlock(off.id, off.name, off.isBlocked)}
+                      isLoading={loadingActionId === off.id}
                       leftIcon={off.isBlocked ? <Unlock className="w-3 h-3 text-emerald-600" /> : <Lock className="w-3 h-3 text-rose-600" />}
                     >
-                      {off.isBlocked ? 'Unblock User' : 'Block User'}
+                      {off.isBlocked ? 'Unblock Officer' : 'Block Officer'}
                     </Button>
                   </div>
                 </div>
