@@ -86,7 +86,6 @@ export async function getAdminStatsApi() {
   };
 }
 
-/** Backend currently has no admin-wide complaint listing endpoint. */
 export async function getAdminComplaintsApi(_params?: {
   search?: string;
   status?: string;
@@ -120,4 +119,31 @@ export async function getAdminOfficersApi(params?: {
   return apiFetch<AdminOfficersResponse>(`/admin/officers${queryString}`, {
     method: 'GET',
   });
+}
+
+export async function approveOfficerApi(officerId: string) {
+  return apiFetch<AdminOfficerData>(`/admin/officers/${officerId}/approve`, {
+    method: 'PATCH',
+  });
+}
+
+export async function rejectOfficerApi(officerId: string, reason?: string) {
+  return apiFetch<AdminOfficerData>(`/admin/officers/${officerId}/reject`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason: reason || 'Officer registration rejected by administrator.' }),
+  });
+}
+
+export async function blockUserApi(_userId: string) {
+  return {
+    success: false,
+    error: 'User block functionality is not supported by the backend API.',
+  };
+}
+
+export async function unblockUserApi(_userId: string) {
+  return {
+    success: false,
+    error: 'User unblock functionality is not supported by the backend API.',
+  };
 }
