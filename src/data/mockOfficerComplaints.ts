@@ -32,6 +32,7 @@ export interface OfficerComplaintData {
   thumbnailIcon: string;
   description: string;
   coordinates: { lat: number; lng: number };
+  photoUrl?: string;
   timeline: TimelineEntry[];
   resolution?: ResolutionDetails;
 }

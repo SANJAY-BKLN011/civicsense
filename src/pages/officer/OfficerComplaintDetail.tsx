@@ -20,6 +20,7 @@ import {
   Check,
   RotateCcw,
   Users,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   PageHeader,
@@ -465,6 +466,42 @@ export function OfficerComplaintDetail() {
               {complaint.description}
             </p>
           </div>
+
+          {/* Citizen Uploaded Evidence Photo */}
+          {complaint.photoUrl ? (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-slate-400" />
+                Attached Evidence Photo
+              </h3>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <a
+                  href={complaint.photoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                  aria-label="Open complaint evidence photo in a new tab"
+                >
+                  <img
+                    src={complaint.photoUrl}
+                    alt="Citizen uploaded complaint evidence"
+                    className="w-full max-h-96 object-contain rounded-md border border-slate-200 bg-white"
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-slate-400" />
+                Attached Evidence Photo
+              </h3>
+              <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                No complaint evidence photo was uploaded for this issue.
+              </p>
+            </div>
+          )}
 
           {/* Location Summary */}
           <div className="p-4 rounded-lg bg-blue-50/60 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
