@@ -207,9 +207,13 @@ export function OfficerRegister() {
                     disabled={isDeptsLoading}
                   >
                     <option value="">Select department...</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
+                    {departments.map((d) => {
+                      const dId = typeof d === 'object' ? String(d.id || '') : String(d);
+                      const dName = typeof d === 'object' ? String(d.name || d.id || '') : String(d);
+                      return (
+                        <option key={dId} value={dId}>{dName}</option>
+                      );
+                    })}
                   </select>
                   {errors.departmentId && <p className="text-[11px] text-rose-600 font-medium">{errors.departmentId}</p>}
                 </div>

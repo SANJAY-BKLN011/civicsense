@@ -247,9 +247,13 @@ export function AdminDashboard() {
                         className="bg-slate-50 border border-slate-300 rounded-md px-2.5 py-1.5 font-medium text-slate-800 text-xs focus:outline-none"
                       >
                         <option value="ALL">All Departments</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.name}>{d.name}</option>
-                        ))}
+                        {departments.map((d) => {
+                          const dId = typeof d === 'object' ? String(d.id || '') : String(d);
+                          const dName = typeof d === 'object' ? String(d.name || d.id || '') : String(d);
+                          return (
+                            <option key={dId} value={dName}>{dName}</option>
+                          );
+                        })}
                       </select>
                     </div>
 

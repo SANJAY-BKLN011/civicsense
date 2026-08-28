@@ -47,10 +47,14 @@ export function CitizenReport() {
   const { addNotification } = useNotifications();
 
   // Department Options dynamically generated from backend / DepartmentContext
-  const departmentOptions = departments.map((d, index) => ({
-    value: d.id,
-    label: `${index + 1}. ${d.name}`,
-  }));
+  const departmentOptions = departments.map((d, index) => {
+    const dId = typeof d === 'object' ? String(d.id || `dept-${index}`) : String(d);
+    const dName = typeof d === 'object' ? String(d.name || d.id || '') : String(d);
+    return {
+      value: dId,
+      label: `${index + 1}. ${dName}`,
+    };
+  });
   departmentOptions.push({
     value: 'other',
     label: `${departmentOptions.length + 1}. Other / Not Sure (Auto-triage)`,

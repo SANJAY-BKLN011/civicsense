@@ -62,12 +62,16 @@ export function DepartmentProvider({ children }: { children: React.ReactNode }) 
     void fetchDepartments();
   }, []);
 
-  const getDepartmentName = (idOrName: string): string => {
+  const getDepartmentName = (idOrName: any): string => {
     if (!idOrName) return 'Unassigned Department';
+    if (typeof idOrName === 'object') {
+      return typeof idOrName.name === 'string' ? idOrName.name : typeof idOrName.title === 'string' ? idOrName.title : 'Unassigned Department';
+    }
+    const target = String(idOrName);
     const found = departments.find((department) =>
-      department.id === idOrName || department.name === idOrName
+      String(department.id) === target || String(department.name) === target
     );
-    return found?.name || idOrName;
+    return found ? String(found.name) : target;
   };
 
   return (
