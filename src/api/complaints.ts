@@ -153,7 +153,7 @@ function normalizeComplaint(raw: any): ComplaintResponseData {
     thumbnailIcon: raw.thumbnailIcon || '📌',
     description: raw.description || '',
     coordinates: latitude != null && longitude != null ? { lat: Number(latitude), lng: Number(longitude) } : null,
-    photoUrl: normalizeMediaUrl(raw.photo_url || raw.photoUrl),
+    photoUrl: normalizeMediaUrl(raw.photo_url || raw.photoUrl || raw.photo || raw.photo_path || raw.image_url || raw.imageUrl),
     timeline: normalizeStatusHistory(raw.status_history || raw.timeline, raw.status || 'NEW', createdAt),
     resolution,
   };

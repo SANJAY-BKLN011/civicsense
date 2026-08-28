@@ -133,7 +133,7 @@ export function OfficerComplaintDetail() {
           location: apiComplaint.location,
           ward: apiComplaint.ward || 'Ward 12 - Central District',
           coordinates: apiComplaint.coordinates || { lat: 12.9716, lng: 77.5946 },
-          photoUrl: apiComplaint.photoUrl,
+          photoUrl: apiComplaint.photoUrl || (apiComplaint as any).photo_url || (apiComplaint as any).photo,
           timeline: (apiComplaint.timeline || [
             {
               id: `tl-1`,
@@ -143,8 +143,8 @@ export function OfficerComplaintDetail() {
               author: apiComplaint.citizenName || 'Citizen',
               type: 'submission',
             },
-          ]).map((t) => ({
-            id: t.id || `tl-${Math.random()}`,
+          ]).map((t, idx) => ({
+            id: t.id || `tl-${idx + 1}`,
             timestamp: t.timestamp,
             title: t.title,
             description: t.description,
