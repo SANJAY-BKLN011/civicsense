@@ -125,6 +125,7 @@ export function AdminOfficers() {
         rejection_reason: o.rejection_reason,
         status: o.verification_status === 'APPROVED' ? 'Active' : o.verification_status === 'REJECTED' ? 'Rejected' : 'Pending',
         isBlocked: Boolean(o.is_blocked),
+        isUserBlocked: Boolean(o.user_is_blocked ?? o.is_user_blocked ?? o.is_blocked),
       }))
     : mockOfficers.map((o) => ({
         id: o.id,
@@ -139,6 +140,7 @@ export function AdminOfficers() {
         rejection_reason: null,
         status: o.status,
         isBlocked: false,
+        isUserBlocked: false,
       }));
 
   return (
@@ -275,11 +277,11 @@ export function AdminOfficers() {
                       size="sm"
                       variant="ghost"
                       className="text-[11px] text-slate-500 hover:text-slate-800"
-                      onClick={() => handleToggleUserBlock(off.user_id, off.name, false)}
+                      onClick={() => handleToggleUserBlock(off.user_id, off.name, off.isUserBlocked)}
                       isLoading={loadingActionId === off.user_id}
-                      leftIcon={<Lock className="w-3 h-3 text-amber-600" />}
+                      leftIcon={off.isUserBlocked ? <Unlock className="w-3 h-3 text-emerald-600" /> : <Lock className="w-3 h-3 text-amber-600" />}
                     >
-                      Block User
+                      {off.isUserBlocked ? 'Unblock User' : 'Block User'}
                     </Button>
                   </div>
                 </div>

@@ -22,6 +22,8 @@ export interface AdminOfficerData {
   verification_status: 'PENDING' | 'APPROVED' | 'REJECTED';
   rejection_reason: string | null;
   is_blocked?: boolean;
+  user_is_blocked?: boolean;
+  is_user_blocked?: boolean;
   created_at: string;
   updated_at: string;
 }
