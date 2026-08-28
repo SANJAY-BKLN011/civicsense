@@ -95,16 +95,16 @@ export function AdminDashboard() {
 
   const complaintsList = !USE_MOCK_DATA
     ? apiComplaints.map((c) => ({
-        id: c.id,
-        title: c.title,
-        department: c.department || 'Municipality / Sanitation',
-        location: c.location,
-        submittedDate: c.submittedDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Aug 20, 2026'),
-        status: (c.status || 'NEW') as BadgeVariant,
-        priority: c.priority || 'Medium',
-        citizenName: c.citizenName || 'Sanjay Patel',
-        assignedOfficer: 'Officer Sanjay Kumar',
-        assignedOfficerId: 'OFF-SAN-402',
+        id: String(c.id || ''),
+        title: typeof c.title === 'string' ? c.title : (c.title as any)?.name || 'Untitled',
+        department: typeof c.department === 'string' ? c.department : (c.department as any)?.name || 'Municipality / Sanitation',
+        location: typeof c.location === 'string' ? c.location : (c.location as any)?.address || 'Address not provided',
+        submittedDate: String(c.submittedDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Aug 20, 2026')),
+        status: (typeof c.status === 'string' ? c.status : (c.status as any)?.name || 'NEW') as BadgeVariant,
+        priority: typeof c.priority === 'string' ? c.priority : (c.priority as any)?.name || 'Medium',
+        citizenName: typeof c.citizenName === 'string' ? c.citizenName : (c as any).citizen?.name || 'Sanjay Patel',
+        assignedOfficer: typeof c.assignedOfficer === 'string' ? c.assignedOfficer : (c as any).officer?.name || 'Unassigned',
+        assignedOfficerId: String(c.assignedOfficerId || (c as any).officer?.id || ''),
       }))
     : mockComplaints;
 

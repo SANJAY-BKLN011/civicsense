@@ -74,15 +74,15 @@ export function CitizenComplaints() {
   // Unified complaints source
   const sourceComplaints = !USE_MOCK_DATA
     ? apiComplaints.map((c) => ({
-        id: c.id,
-        title: c.title,
-        department: c.department || 'Municipality / Sanitation',
-        location: c.location,
-        submittedDate: c.submittedDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Aug 20, 2026'),
-        status: (c.status || 'NEW') as BadgeVariant,
-        priority: c.priority || 'Medium',
-        thumbnailIcon: c.thumbnailIcon || '📌',
-        description: c.description,
+        id: String(c.id || ''),
+        title: typeof c.title === 'string' ? c.title : (c.title as any)?.name || 'Untitled',
+        department: typeof c.department === 'string' ? c.department : (c.department as any)?.name || 'Municipality / Sanitation',
+        location: typeof c.location === 'string' ? c.location : (c.location as any)?.address || 'Address not provided',
+        submittedDate: String(c.submittedDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Aug 20, 2026')),
+        status: (typeof c.status === 'string' ? c.status : (c.status as any)?.name || 'NEW') as BadgeVariant,
+        priority: typeof c.priority === 'string' ? c.priority : (c.priority as any)?.name || 'Medium',
+        thumbnailIcon: typeof c.thumbnailIcon === 'string' ? c.thumbnailIcon : '📌',
+        description: typeof c.description === 'string' ? c.description : String(c.description || ''),
       }))
     : mockStoreComplaints;
 

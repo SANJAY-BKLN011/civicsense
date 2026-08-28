@@ -46,19 +46,20 @@ export function AdminComplaints() {
 
   const activeComplaints = !USE_MOCK_DATA
     ? apiComplaints.map((c) => {
-        const departmentName = typeof c.department === 'string' ? c.department : c.department?.name || 'Department not provided';
-        const citizenName = typeof c.citizen === 'string' ? c.citizen : c.citizen?.name || c.citizenName || 'Not provided';
-        const officerName = typeof c.officer === 'string' ? c.officer : c.officer?.name || c.assignedOfficer || 'Unassigned';
+        const departmentName = typeof c.department === 'string' ? c.department : (c.department as any)?.name || 'Department not provided';
+        const citizenName = typeof c.citizenName === 'string' ? c.citizenName : (c.citizen as any)?.name || 'Not provided';
+        const officerName = typeof c.assignedOfficer === 'string' ? c.assignedOfficer : (c.officer as any)?.name || 'Unassigned';
         return {
-          id: c.id,
-          title: c.title,
+          id: String(c.id || ''),
+          title: typeof c.title === 'string' ? c.title : (c.title as any)?.name || 'Untitled',
           department: departmentName,
-          location: typeof c.location === 'string' ? c.location : c.location?.address || c.location?.formatted_address || 'Address not provided',
-          submittedDate: c.submittedDate || (c.created_at ? new Date(c.created_at).toLocaleDateString() : c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Not provided'),
-          status: (c.status || 'NEW') as BadgeVariant,
-          priority: c.priority || 'Medium',
+          location: typeof c.location === 'string' ? c.location : (c.location as any)?.address || 'Address not provided',
+          submittedDate: String(c.submittedDate || (c.created_at ? new Date(c.created_at).toLocaleDateString() : c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Not provided')),
+          status: (typeof c.status === 'string' ? c.status : (c.status as any)?.name || 'NEW') as BadgeVariant,
+          priority: typeof c.priority === 'string' ? c.priority : (c.priority as any)?.name || 'Medium',
           citizenName,
           assignedOfficer: officerName,
+          assignedOfficerId: String(c.assignedOfficerId || (c.officer as any)?.id || ''),
         };
       })
     : mockComplaints;

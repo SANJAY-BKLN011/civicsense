@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, API_BASE_URL } from './client';
 
 export interface AdminStatsData {
   totalComplaints: number;
@@ -39,6 +39,50 @@ interface AdminSummaryResponse {
   by_department: Array<{ department_id: string; department_name: string; count: number }>;
 }
 
+function asName(value: any, fallback = ''): string {
+  if (value == null) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    if (typeof value.name === 'string' && value.name) return value.name;
+    if (typeof value.full_name === 'string' && value.full_name) return value.full_name;
+    if (typeof value.fullName === 'string' && value.fullName) return value.fullName;
+    if (typeof value.title === 'string' && value.title) return value.title;
+    if (typeof value.email === 'string' && value.email) return value.email;
+    if (typeof value.value === 'string' && value.value) return value.value;
+    if (typeof value.label === 'string' && value.label) return value.label;
+    if (typeof value.address === 'string' && value.address) return value.address;
+    return fallback;
+  }
+  return fallback;
+}
+
+function asId(value: any): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    return value.id ? String(value.id) : undefined;
+  }
+  return undefined;
+}
+
+const API_ORIGIN = (() => {
+  try {
+    return new URL(API_BASE_URL).origin;
+  } catch {
+    return '';
+  }
+})();
+
+function normalizeMediaUrl(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  if (typeof value !== 'string') return undefined;
+  if (value.startsWith('data:image/')) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith('/')) return `${API_ORIGIN}${value}`;
+  return `${API_ORIGIN}/${value}`;
+}
+
 export async function getAdminStatsApi() {
   const result = await apiFetch<AdminSummaryResponse>('/admin/complaints/summary', { method: 'GET' });
   if (!result.success || !result.data) return result as typeof result & { data?: AdminStatsData };
@@ -46,14 +90,18 @@ export async function getAdminStatsApi() {
   return {
     ...result,
     data: {
-      totalComplaints: summary.total_complaints,
-      newComplaints: summary.by_status.new,
-      inProgressComplaints: summary.by_status.in_progress,
-      resolvedComplaints: summary.by_status.resolved,
+      totalComplaints: Number(summary.total_complaints || 0),
+      newComplaints: Number(summary.by_status?.new || 0),
+      inProgressComplaints: Number(summary.by_status?.in_progress || 0),
+      resolvedComplaints: Number(summary.by_status?.resolved || 0),
       totalCitizens: null,
       totalOfficers: null,
-      totalDepartments: summary.by_department.length,
-      byDepartment: summary.by_department.map((d) => ({ departmentId: d.department_id, departmentName: d.department_name, count: d.count })),
+      totalDepartments: Array.isArray(summary.by_department) ? summary.by_department.length : 0,
+      byDepartment: (Array.isArray(summary.by_department) ? summary.by_department : []).map((d) => ({
+        departmentId: String(d.department_id || ''),
+        departmentName: asName(d.department_name, 'Department'),
+        count: Number(d.count || 0),
+      })),
     } satisfies AdminStatsData,
   };
 }
@@ -64,48 +112,88 @@ export interface AdminComplaint {
   description: string;
   status: string;
   priority: string;
+  category?: string;
   photo_url?: string | null;
-  location?: string | null;
+  photoUrl?: string;
+  location: string;
+  ward?: string;
   latitude?: number | null;
   longitude?: number | null;
-  department?: { id: string; name: string } | string | null;
-  citizen?: { id: string; name: string; email: string } | string | null;
-  officer?: { id: string; name: string; email: string } | string | null;
+  coordinates?: { lat: number; lng: number } | null;
+  department: string;
+  departmentId?: string;
+  citizenName: string;
+  citizenEmail?: string;
+  assignedOfficer: string;
+  assignedOfficerId?: string;
+  submittedDate?: string;
+  submittedTime?: string;
+  createdAt?: string;
   created_at: string;
   updated_at: string;
-  resolution?: unknown;
+  timeline?: any[];
+  resolution?: any;
 }
 
 function normalizeAdminComplaint(raw: any): AdminComplaint {
-  const rawLocation = raw.location;
+  const createdAt = raw.created_at || raw.createdAt;
+  const rawLocation = typeof raw.location === 'string' ? raw.location.trim() : raw.location;
   const location =
-    (typeof rawLocation === 'string' && rawLocation.trim()) ||
-    rawLocation?.address ||
-    rawLocation?.formatted_address ||
+    (typeof rawLocation === 'string' && rawLocation) ||
     raw.location_description ||
     raw.address ||
-    null;
+    raw.formatted_address ||
+    (typeof raw.location === 'object' ? raw.location?.address || raw.location?.formatted_address || raw.location?.name : undefined) ||
+    'Address not provided';
 
-  const department = typeof raw.department === 'object' && raw.department !== null
-    ? { id: raw.department.id, name: raw.department.name || 'Unknown Department' }
-    : raw.department || null;
+  const latitude = raw.latitude ?? raw.coordinates?.lat ?? raw.location?.latitude ?? null;
+  const longitude = raw.longitude ?? raw.coordinates?.lng ?? raw.location?.longitude ?? null;
 
-  const citizen = typeof raw.citizen === 'object' && raw.citizen !== null
-    ? { id: raw.citizen.id, name: raw.citizen.name || 'Unknown Citizen', email: raw.citizen.email || '' }
-    : raw.citizen || null;
+  const departmentName = asName(raw.department, 'Municipality / Sanitation');
+  const departmentId = asId(raw.departmentId) || asId(raw.department_id) || asId(raw.department);
 
-  const officer = typeof raw.officer === 'object' && raw.officer !== null
-    ? { id: raw.officer.id, name: raw.officer.name || 'Unassigned', email: raw.officer.email || '' }
-    : raw.officer || null;
+  const citizenName = asName(raw.citizenName ?? raw.citizen ?? raw.citizen_name, 'Not provided');
+  const citizenEmail = typeof raw.citizen === 'object' && raw.citizen ? raw.citizen.email : (raw.citizenEmail || '');
+
+  const officerValue = raw.assignedOfficer ?? raw.assigned_officer ?? raw.assigned_officer_name ?? raw.officer ?? raw.officer_name ?? raw.assignee;
+  const assignedOfficer = asName(officerValue, 'Unassigned');
+  const assignedOfficerId = asId(raw.assignedOfficerId) || asId(raw.assigned_officer_id) || asId(officerValue);
+
+  const category = asName(raw.category, 'Municipal Services');
+  const status = asName(raw.status, 'NEW');
+  const priority = asName(raw.priority, 'Medium');
+
+  const photoUrl = normalizeMediaUrl(
+    raw.photo_url || raw.photoUrl || raw.photo || raw.photo_path || raw.image_url || raw.imageUrl || raw.evidence?.photo_url || raw.evidence?.url || raw.attachment?.url
+  );
 
   return {
-    ...raw,
-    location,
-    latitude: raw.latitude ?? rawLocation?.latitude ?? null,
-    longitude: raw.longitude ?? rawLocation?.longitude ?? null,
-    department,
-    citizen,
-    officer,
+    id: String(raw.id ?? ''),
+    title: asName(raw.title, 'Untitled complaint'),
+    description: asName(raw.description, ''),
+    status,
+    priority,
+    category,
+    photo_url: photoUrl,
+    photoUrl,
+    location: String(location),
+    ward: asName(raw.ward, 'Not provided'),
+    latitude,
+    longitude,
+    coordinates: latitude != null && longitude != null ? { lat: Number(latitude), lng: Number(longitude) } : null,
+    department: departmentName,
+    departmentId,
+    citizenName,
+    citizenEmail,
+    assignedOfficer,
+    assignedOfficerId,
+    submittedDate: raw.submittedDate,
+    submittedTime: raw.submittedTime,
+    createdAt: String(createdAt || ''),
+    created_at: String(createdAt || ''),
+    updated_at: String(raw.updated_at || raw.updatedAt || ''),
+    timeline: raw.timeline || raw.status_history,
+    resolution: raw.resolution,
   };
 }
 
@@ -126,6 +214,33 @@ export async function getAdminComplaintsApi(params?: { search?: string; status?:
   return { ...result, data: complaints };
 }
 
+function normalizeAdminOfficer(raw: any): AdminOfficerData {
+  const deptName = asName(raw.department, 'Department unavailable');
+  const deptId = asId(raw.departmentId) || asId(raw.department_id) || asId(raw.department) || '';
+
+  return {
+    id: String(raw.id || ''),
+    user_id: String(raw.user_id || raw.userId || raw.user?.id || raw.id || ''),
+    name: asName(raw.name ?? raw.user, 'Field Officer'),
+    email: typeof raw.email === 'string' ? raw.email : (raw.user?.email || ''),
+    phone: raw.phone || raw.user?.phone || null,
+    designation: asName(raw.designation, 'Field Officer'),
+    department: {
+      id: deptId,
+      name: deptName,
+      description: raw.department?.description || null,
+      active: Boolean(raw.department?.active ?? true),
+    },
+    verification_status: raw.verification_status || raw.status || 'PENDING',
+    rejection_reason: raw.rejection_reason || null,
+    is_blocked: Boolean(raw.is_blocked),
+    user_is_blocked: Boolean(raw.user_is_blocked ?? raw.is_user_blocked ?? raw.user?.is_blocked ?? raw.is_blocked),
+    is_user_blocked: Boolean(raw.is_user_blocked ?? raw.user_is_blocked ?? raw.user?.is_blocked ?? raw.is_blocked),
+    created_at: String(raw.created_at || raw.createdAt || ''),
+    updated_at: String(raw.updated_at || raw.updatedAt || ''),
+  };
+}
+
 export async function getAdminOfficersApi(params?: { page?: number; limit?: number; verification_status?: string; department_id?: string }) {
   const query = new URLSearchParams();
   if (params?.page) query.set('page', String(params.page));
@@ -133,7 +248,14 @@ export async function getAdminOfficersApi(params?: { page?: number; limit?: numb
   if (params?.verification_status) query.set('verification_status', params.verification_status);
   if (params?.department_id) query.set('department_id', params.department_id);
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiFetch<AdminOfficersResponse>(`/admin/officers${suffix}`, { method: 'GET' });
+  const result = await apiFetch<AdminOfficersResponse>(`/admin/officers${suffix}`, { method: 'GET' });
+  if (!result.success || !result.data) return result;
+
+  const payload = result.data as any;
+  const rawOfficers = Array.isArray(payload) ? payload : payload.officers || [];
+  const officers = rawOfficers.map(normalizeAdminOfficer);
+
+  return { ...result, data: { officers, pagination: payload.pagination || { page: 1, limit: 50, total: officers.length, total_pages: 1 } } };
 }
 
 export async function approveOfficerApi(officerId: string) {

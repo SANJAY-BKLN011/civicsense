@@ -68,24 +68,41 @@ export function AdminComplaintDetail() {
   const complaint = !USE_MOCK_DATA
     ? apiComplaint
       ? {
-          id: apiComplaint.id,
-          title: apiComplaint.title,
-          category: apiComplaint.category || 'Municipal Master Record',
-          department: apiComplaint.department || 'Department not provided',
-          submittedDate: apiComplaint.submittedDate || (apiComplaint.createdAt ? new Date(apiComplaint.createdAt).toLocaleDateString() : 'Not provided'),
-          submittedTime: apiComplaint.submittedTime || 'Not provided',
-          citizenName: apiComplaint.citizenName || 'Not provided',
-          assignedOfficer: apiComplaint.assignedOfficer || 'Unassigned',
-          assignedOfficerId: apiComplaint.assignedOfficerId || '',
-          status: (apiComplaint.status || 'NEW') as BadgeVariant,
-          priority: apiComplaint.priority || 'Medium',
-          description: apiComplaint.description,
-          location: apiComplaint.location,
-          ward: apiComplaint.ward || 'Not provided',
+          id: String(apiComplaint.id || ''),
+          title: typeof apiComplaint.title === 'string' ? apiComplaint.title : (apiComplaint.title as any)?.name || 'Untitled',
+          category: typeof apiComplaint.category === 'string' ? apiComplaint.category : (apiComplaint.category as any)?.name || 'Municipal Master Record',
+          department: typeof apiComplaint.department === 'string' ? apiComplaint.department : (apiComplaint.department as any)?.name || 'Department not provided',
+          submittedDate: String(apiComplaint.submittedDate || (apiComplaint.createdAt ? new Date(apiComplaint.createdAt).toLocaleDateString() : 'Not provided')),
+          submittedTime: String(apiComplaint.submittedTime || 'Not provided'),
+          citizenName: typeof apiComplaint.citizenName === 'string' ? apiComplaint.citizenName : (apiComplaint as any).citizen?.name || 'Not provided',
+          assignedOfficer: typeof apiComplaint.assignedOfficer === 'string' ? apiComplaint.assignedOfficer : (apiComplaint as any).officer?.name || 'Unassigned',
+          assignedOfficerId: String(apiComplaint.assignedOfficerId || (apiComplaint as any).officer?.id || ''),
+          status: (typeof apiComplaint.status === 'string' ? apiComplaint.status : (apiComplaint.status as any)?.name || 'NEW') as BadgeVariant,
+          priority: typeof apiComplaint.priority === 'string' ? apiComplaint.priority : (apiComplaint.priority as any)?.name || 'Medium',
+          description: typeof apiComplaint.description === 'string' ? apiComplaint.description : String(apiComplaint.description || ''),
+          location: typeof apiComplaint.location === 'string' ? apiComplaint.location : (apiComplaint.location as any)?.address || 'Address not provided',
+          ward: typeof apiComplaint.ward === 'string' ? apiComplaint.ward : (apiComplaint.ward as any)?.name || 'Not provided',
           coordinates: apiComplaint.coordinates,
           photoUrl: apiComplaint.photoUrl,
-          timeline: apiComplaint.timeline || [],
-          resolution: apiComplaint.resolution,
+          timeline: Array.isArray(apiComplaint.timeline)
+            ? apiComplaint.timeline.map((t, idx) => ({
+                id: String(t.id || `tl-${idx + 1}`),
+                timestamp: String(t.timestamp || ''),
+                title: typeof t.title === 'string' ? t.title : (t.title as any)?.name || '',
+                description: typeof t.description === 'string' ? t.description : (t.description as any)?.name || '',
+                author: typeof t.author === 'string' ? t.author : (t.author as any)?.name || 'System',
+                type: t.type || 'status_change',
+              }))
+            : [],
+          resolution: apiComplaint.resolution
+            ? {
+                resolvedDate: String(apiComplaint.resolution.resolvedDate || ''),
+                resolvedTime: String(apiComplaint.resolution.resolvedTime || ''),
+                officerName: typeof apiComplaint.resolution.officerName === 'string' ? apiComplaint.resolution.officerName : (apiComplaint.resolution as any).officer?.name || 'Officer',
+                note: typeof apiComplaint.resolution.note === 'string' ? apiComplaint.resolution.note : String(apiComplaint.resolution.note || ''),
+                photoPreview: apiComplaint.resolution.photoPreview,
+              }
+            : undefined,
         }
       : null
     : mockComplaint;
