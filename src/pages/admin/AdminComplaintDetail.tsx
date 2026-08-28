@@ -75,8 +75,8 @@ export function AdminComplaintDetail() {
           submittedDate: apiComplaint.submittedDate || (apiComplaint.createdAt ? new Date(apiComplaint.createdAt).toLocaleDateString() : 'Not provided'),
           submittedTime: apiComplaint.submittedTime || 'Not provided',
           citizenName: apiComplaint.citizenName || 'Not provided',
-          assignedOfficer: 'Assignment not provided by complaint detail endpoint',
-          assignedOfficerId: '',
+          assignedOfficer: apiComplaint.assignedOfficer || 'Unassigned',
+          assignedOfficerId: apiComplaint.assignedOfficerId || '',
           status: (apiComplaint.status || 'NEW') as BadgeVariant,
           priority: apiComplaint.priority || 'Medium',
           description: apiComplaint.description,
@@ -187,18 +187,16 @@ export function AdminComplaintDetail() {
             <p className="text-sm text-slate-800 leading-relaxed bg-slate-50/50 p-4 rounded-lg border border-slate-200">{complaint.description}</p>
           </div>
 
-          {(complaint as any).photoUrl && (
+          {complaint.photoUrl ? (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5"><ImageIcon className="w-4 h-4 text-slate-400" />Attached Evidence</h3>
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <a href={(complaint as any).photoUrl} target="_blank" rel="noreferrer" className="block" aria-label="Open complaint evidence photo in a new tab">
-                  <img src={(complaint as any).photoUrl} alt="Complaint evidence" className="w-full max-h-96 object-contain rounded-md border border-slate-200 bg-white" loading="lazy" />
+                <a href={complaint.photoUrl} target="_blank" rel="noreferrer" className="block" aria-label="Open complaint evidence photo in a new tab">
+                  <img src={complaint.photoUrl} alt="Complaint evidence" className="block w-full max-h-96 object-contain rounded-md border border-slate-200 bg-white" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
                 </a>
               </div>
             </div>
-          )}
-
-          {!(complaint as any).photoUrl && (
+          ) : (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5"><ImageIcon className="w-4 h-4 text-slate-400" />Attached Evidence</h3>
               <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg border border-slate-200">No complaint photo was provided.</p>
@@ -215,21 +213,21 @@ export function AdminComplaintDetail() {
         </CardContent>
       </Card>
 
-      {complaint.status === 'RESOLVED' && (complaint as any).resolution && (
+      {complaint.status === 'RESOLVED' && complaint.resolution && (
         <Card className="border-2 border-emerald-300 shadow-md bg-emerald-50/40 text-left">
           <CardHeader className="bg-emerald-100/70 border-b border-emerald-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold"><CheckCircle2 className="w-5 h-5" /></div>
               <div>
                 <CardTitle className="text-base font-bold text-emerald-950">Verified Case Resolution Report</CardTitle>
-                <p className="text-xs text-emerald-800">Closed on {(complaint as any).resolution.resolvedDate}</p>
+                <p className="text-xs text-emerald-800">Closed on {complaint.resolution.resolvedDate}</p>
               </div>
             </div>
             <span className="font-mono text-xs font-bold bg-emerald-200 text-emerald-900 px-2.5 py-1 rounded-full border border-emerald-300">RESOLVED</span>
           </CardHeader>
           <CardContent className="p-5 space-y-3 text-xs">
-            <p className="text-sm font-medium text-slate-900 bg-white p-3 rounded border border-emerald-200">{(complaint as any).resolution.note}</p>
-            {(complaint as any).resolution.photoPreview && <img src={(complaint as any).resolution.photoPreview} alt="Resolution Proof" className="w-full max-h-64 object-contain rounded border border-emerald-200 bg-white" loading="lazy" />}
+            <p className="text-sm font-medium text-slate-900 bg-white p-3 rounded border border-emerald-200">{complaint.resolution.note}</p>
+            {complaint.resolution.photoPreview && <img src={complaint.resolution.photoPreview} alt="Resolution Proof" className="block w-full max-h-64 object-contain rounded border border-emerald-200 bg-white" loading="lazy" />}
           </CardContent>
         </Card>
       )}
