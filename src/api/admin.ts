@@ -65,13 +65,48 @@ export interface AdminComplaint {
   status: string;
   priority: string;
   photo_url?: string | null;
-  location?: { latitude?: number; longitude?: number; address?: string | null } | null;
-  department?: { id: string; name: string } | null;
-  citizen?: { id: string; name: string; email: string } | null;
-  officer?: { id: string; name: string; email: string } | null;
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  department?: { id: string; name: string } | string | null;
+  citizen?: { id: string; name: string; email: string } | string | null;
+  officer?: { id: string; name: string; email: string } | string | null;
   created_at: string;
   updated_at: string;
   resolution?: unknown;
+}
+
+function normalizeAdminComplaint(raw: any): AdminComplaint {
+  const rawLocation = raw.location;
+  const location =
+    (typeof rawLocation === 'string' && rawLocation.trim()) ||
+    rawLocation?.address ||
+    rawLocation?.formatted_address ||
+    raw.location_description ||
+    raw.address ||
+    null;
+
+  const department = typeof raw.department === 'object' && raw.department !== null
+    ? { id: raw.department.id, name: raw.department.name || 'Unknown Department' }
+    : raw.department || null;
+
+  const citizen = typeof raw.citizen === 'object' && raw.citizen !== null
+    ? { id: raw.citizen.id, name: raw.citizen.name || 'Unknown Citizen', email: raw.citizen.email || '' }
+    : raw.citizen || null;
+
+  const officer = typeof raw.officer === 'object' && raw.officer !== null
+    ? { id: raw.officer.id, name: raw.officer.name || 'Unassigned', email: raw.officer.email || '' }
+    : raw.officer || null;
+
+  return {
+    ...raw,
+    location,
+    latitude: raw.latitude ?? rawLocation?.latitude ?? null,
+    longitude: raw.longitude ?? rawLocation?.longitude ?? null,
+    department,
+    citizen,
+    officer,
+  };
 }
 
 export async function getAdminComplaintsApi(params?: { search?: string; status?: string; priority?: string; department?: string }) {
@@ -81,7 +116,14 @@ export async function getAdminComplaintsApi(params?: { search?: string; status?:
   if (params?.priority) query.set('priority', params.priority);
   if (params?.department) query.set('department', params.department);
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiFetch<AdminComplaint[]>(`/admin/complaints${suffix}`, { method: 'GET' });
+  const result = await apiFetch<AdminComplaint[]>(`/admin/complaints${suffix}`, { method: 'GET' });
+  if (!result.success || !result.data) return result;
+
+  const complaints = Array.isArray(result.data)
+    ? result.data.map(normalizeAdminComplaint)
+    : ((result.data as any).complaints || []).map(normalizeAdminComplaint);
+
+  return { ...result, data: complaints };
 }
 
 export async function getAdminOfficersApi(params?: { page?: number; limit?: number; verification_status?: string; department_id?: string }) {
