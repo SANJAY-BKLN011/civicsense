@@ -86,10 +86,10 @@ function mapBackendType(type: string): NotificationItem['type'] {
   }
 }
 
-function mapBackendNotification(b: BackendNotificationItem): NotificationItem {
+function mapBackendNotification(b: BackendNotificationItem, role: 'citizen' | 'officer'): NotificationItem {
   return {
     id: b.id,
-    role: 'citizen',
+    role,
     title: b.title,
     message: b.message,
     timestamp: new Date(b.created_at).toLocaleString('en-US', {
@@ -101,9 +101,19 @@ function mapBackendNotification(b: BackendNotificationItem): NotificationItem {
   };
 }
 
+function dedupeNotifications(items: NotificationItem[]): NotificationItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, officerUser, adminUser, isLoading: authLoading } = useAuth();
   const activeUserId = user?.id || officerUser?.id || adminUser?.id || null;
+  const activeRole: 'citizen' | 'officer' = officerUser ? 'officer' : 'citizen';
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
@@ -141,7 +151,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (res.success && res.data) {
         const payload = res.data as any;
         const list = Array.isArray(payload) ? payload : payload.notifications || [];
-        setNotifications((list as BackendNotificationItem[]).map(mapBackendNotification));
+        setNotifications(
+          dedupeNotifications((list as BackendNotificationItem[]).map((item) => mapBackendNotification(item, activeRole))),
+        );
         fetchedSessionKeyRef.current = sessionKey;
       } else {
         setError(res.error || 'Unable to load notifications from server.');
@@ -152,25 +164,32 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  }, [activeUserId]);
+  }, [activeRole, activeUserId]);
 
+  // Real mode: fetch once for the authenticated session/user. Do not depend on
+  // notification state, otherwise every state update can retrigger the effect.
   useEffect(() => {
-    if (!USE_MOCK_DATA && !authLoading) {
-      const token = getToken();
-      if (token) {
-        void fetchRealNotifications();
-      } else {
-        fetchedSessionKeyRef.current = null;
-        setIsLoading(false);
-      }
-    } else if (USE_MOCK_DATA) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-      } catch (e) {
-        console.warn('Failed to save notifications to localStorage', e);
-      }
+    if (USE_MOCK_DATA || authLoading) return;
+
+    const token = getToken();
+    if (token) {
+      void fetchRealNotifications();
+    } else {
+      fetchedSessionKeyRef.current = null;
+      setIsLoading(false);
     }
-  }, [authLoading, activeUserId, fetchRealNotifications, notifications]);
+  }, [authLoading, activeUserId, activeRole, fetchRealNotifications]);
+
+  // Mock mode only: persist local demo notifications. Real mode never writes
+  // backend notifications into localStorage, so mock and real data cannot mix.
+  useEffect(() => {
+    if (!USE_MOCK_DATA) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    } catch (e) {
+      console.warn('Failed to save notifications to localStorage', e);
+    }
+  }, [notifications]);
 
   const citizenNotifications = useMemo(() => notifications.filter((n) => n.role === 'citizen'), [notifications]);
   const officerNotifications = useMemo(() => notifications.filter((n) => n.role === 'officer'), [notifications]);
