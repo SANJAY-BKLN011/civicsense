@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   getNotificationsApi,
   markNotificationReadApi,
   markAllNotificationsReadApi,
   type BackendNotificationItem,
 } from '../api/notifications';
-import { USE_MOCK_DATA } from '../api/client';
+import { getToken, USE_MOCK_DATA } from '../api/client';
+import { useAuth } from './AuthContext';
 
 export interface NotificationItem {
   id: string;
@@ -88,8 +89,6 @@ function mapBackendType(type: string): NotificationItem['type'] {
 function mapBackendNotification(b: BackendNotificationItem): NotificationItem {
   return {
     id: b.id,
-    // The backend returns notifications for the authenticated user only; role is a UI concern.
-    // The authenticated dashboard supplies the role when filtering below.
     role: 'citizen',
     title: b.title,
     message: b.message,
@@ -103,6 +102,9 @@ function mapBackendNotification(b: BackendNotificationItem): NotificationItem {
 }
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, officerUser, adminUser, isLoading: authLoading } = useAuth();
+  const activeUserId = user?.id || officerUser?.id || adminUser?.id || null;
+
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -115,52 +117,77 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [isLoading, setIsLoading] = useState(!USE_MOCK_DATA);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchRealNotifications = async () => {
+  const isFetchingRef = useRef(false);
+  const fetchedSessionKeyRef = useRef<string | null>(null);
+
+  const fetchRealNotifications = useCallback(async (force = false) => {
     if (USE_MOCK_DATA) return;
+    const token = getToken();
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    const sessionKey = `${token}_${activeUserId || ''}`;
+    if (isFetchingRef.current) return;
+    if (!force && fetchedSessionKeyRef.current === sessionKey) return;
+
+    isFetchingRef.current = true;
     setIsLoading(true);
     setError(null);
 
-    const res = await getNotificationsApi({ limit: 50 });
-    if (res.success && res.data) {
-      const payload = res.data as any;
-      const list = Array.isArray(payload) ? payload : payload.notifications || [];
-      setNotifications((list as BackendNotificationItem[]).map(mapBackendNotification));
-    } else {
-      setError(res.error || 'Unable to load notifications from server.');
+    try {
+      const res = await getNotificationsApi({ limit: 50 });
+      if (res.success && res.data) {
+        const payload = res.data as any;
+        const list = Array.isArray(payload) ? payload : payload.notifications || [];
+        setNotifications((list as BackendNotificationItem[]).map(mapBackendNotification));
+        fetchedSessionKeyRef.current = sessionKey;
+      } else {
+        setError(res.error || 'Unable to load notifications from server.');
+      }
+    } catch {
+      setError('Unable to load notifications from server.');
+    } finally {
+      setIsLoading(false);
+      isFetchingRef.current = false;
     }
-    setIsLoading(false);
-  };
+  }, [activeUserId]);
 
   useEffect(() => {
-    if (!USE_MOCK_DATA) {
-      void fetchRealNotifications();
-      const interval = setInterval(() => void fetchRealNotifications(), 20000);
-      return () => clearInterval(interval);
+    if (!USE_MOCK_DATA && !authLoading) {
+      const token = getToken();
+      if (token) {
+        void fetchRealNotifications();
+      } else {
+        fetchedSessionKeyRef.current = null;
+        setIsLoading(false);
+      }
+    } else if (USE_MOCK_DATA) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      } catch (e) {
+        console.warn('Failed to save notifications to localStorage', e);
+      }
     }
+  }, [authLoading, activeUserId, fetchRealNotifications, notifications]);
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-    } catch (e) {
-      console.warn('Failed to save notifications to localStorage', e);
-    }
-  }, []);
+  const citizenNotifications = useMemo(() => notifications.filter((n) => n.role === 'citizen'), [notifications]);
+  const officerNotifications = useMemo(() => notifications.filter((n) => n.role === 'officer'), [notifications]);
+  const citizenUnreadCount = useMemo(() => citizenNotifications.filter((n) => !n.isRead).length, [citizenNotifications]);
+  const officerUnreadCount = useMemo(() => officerNotifications.filter((n) => !n.isRead).length, [officerNotifications]);
 
-  const citizenNotifications = notifications.filter((n) => n.role === 'citizen');
-  const officerNotifications = notifications.filter((n) => n.role === 'officer');
-  const citizenUnreadCount = citizenNotifications.filter((n) => !n.isRead).length;
-  const officerUnreadCount = officerNotifications.filter((n) => !n.isRead).length;
-
-  const markAsRead = async (id: string) => {
+  const markAsRead = useCallback(async (id: string) => {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
     if (!USE_MOCK_DATA) await markNotificationReadApi(id);
-  };
+  }, []);
 
-  const markAllAsRead = async (role?: 'citizen' | 'officer') => {
+  const markAllAsRead = useCallback(async (role?: 'citizen' | 'officer') => {
     setNotifications((prev) => prev.map((n) => !role || n.role === role ? { ...n, isRead: true } : n));
     if (!USE_MOCK_DATA) await markAllNotificationsReadApi();
-  };
+  }, []);
 
-  const addNotification = (item: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => {
+  const addNotification = useCallback((item: Omit<NotificationItem, 'id' | 'timestamp' | 'isRead'>) => {
     const now = new Date();
     const newItem: NotificationItem = {
       ...item,
@@ -169,28 +196,45 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       isRead: false,
     };
     setNotifications((prev) => [newItem, ...prev]);
-  };
+  }, []);
 
-  const resetNotifications = () => {
+  const resetNotifications = useCallback(() => {
     setNotifications(initialNotifications);
     localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
+
+  const handleRefetch = useCallback(() => fetchRealNotifications(true), [fetchRealNotifications]);
+
+  const contextValue = useMemo(() => ({
+    notifications,
+    citizenNotifications,
+    officerNotifications,
+    citizenUnreadCount,
+    officerUnreadCount,
+    isLoading,
+    error,
+    markAsRead,
+    markAllAsRead,
+    addNotification,
+    resetNotifications,
+    refetchNotifications: handleRefetch,
+  }), [
+    notifications,
+    citizenNotifications,
+    officerNotifications,
+    citizenUnreadCount,
+    officerUnreadCount,
+    isLoading,
+    error,
+    markAsRead,
+    markAllAsRead,
+    addNotification,
+    resetNotifications,
+    handleRefetch,
+  ]);
 
   return (
-    <NotificationContext.Provider value={{
-      notifications,
-      citizenNotifications,
-      officerNotifications,
-      citizenUnreadCount,
-      officerUnreadCount,
-      isLoading,
-      error,
-      markAsRead,
-      markAllAsRead,
-      addNotification,
-      resetNotifications,
-      refetchNotifications: fetchRealNotifications,
-    }}>
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );
