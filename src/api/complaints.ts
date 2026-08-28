@@ -42,6 +42,8 @@ export interface ComplaintResponseData {
   submittedTime?: string;
   createdAt?: string;
   citizenName?: string;
+  assignedOfficer?: string;
+  assignedOfficerId?: string;
   status: string;
   priority?: string;
   thumbnailIcon?: string;
@@ -116,10 +118,32 @@ function normalizeComplaint(raw: any): ComplaintResponseData {
   const latitude = raw.latitude ?? raw.coordinates?.lat;
   const longitude = raw.longitude ?? raw.coordinates?.lng;
 
+  // Keep the citizen-entered address/landmark as the primary location value.
+  // Only fall back to other address fields; never replace a missing address with GPS coordinates.
+  const rawLocation = typeof raw.location === 'string' ? raw.location.trim() : raw.location;
   const location =
-    raw.location ||
+    (typeof rawLocation === 'string' && rawLocation) ||
+    raw.location_description ||
+    raw.address ||
+    raw.formatted_address ||
     office?.address ||
-    (latitude != null && longitude != null ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` : 'Location not provided');
+    (typeof raw.location === 'object' ? raw.location?.address || raw.location?.formatted_address : undefined) ||
+    'Address not provided';
+
+  const assignedOfficer =
+    raw.assignedOfficer ||
+    raw.assigned_officer?.name ||
+    raw.assigned_officer_name ||
+    raw.officer?.name ||
+    raw.officer_name ||
+    raw.assignee?.name;
+  const assignedOfficerId =
+    raw.assignedOfficerId ||
+    raw.assigned_officer?.id ||
+    raw.assigned_officer_id ||
+    raw.officer?.id ||
+    raw.officer_id ||
+    raw.assignee?.id;
 
   const resolution = raw.resolution
     ? (() => {
@@ -130,7 +154,7 @@ function normalizeComplaint(raw: any): ComplaintResponseData {
           resolvedTime: resolvedDateTime.time || '',
           officerName: raw.resolution.officerName || raw.resolution.officer_name || 'Assigned Officer',
           note: raw.resolution.note || 'Complaint resolved.',
-          photoPreview: normalizeMediaUrl(raw.resolution.photo_url || raw.resolution.photoPreview),
+          photoPreview: normalizeMediaUrl(raw.resolution.photo_url || raw.resolution.photoPreview || raw.resolution.photo),
         };
       })()
     : undefined;
@@ -148,12 +172,24 @@ function normalizeComplaint(raw: any): ComplaintResponseData {
     submittedTime: raw.submittedTime || dateTime.time,
     createdAt,
     citizenName: raw.citizenName || raw.citizen?.name,
+    assignedOfficer,
+    assignedOfficerId,
     status: raw.status,
     priority: formatPriority(raw.priority),
     thumbnailIcon: raw.thumbnailIcon || '📌',
     description: raw.description || '',
     coordinates: latitude != null && longitude != null ? { lat: Number(latitude), lng: Number(longitude) } : null,
-    photoUrl: normalizeMediaUrl(raw.photo_url || raw.photoUrl || raw.photo || raw.photo_path || raw.image_url || raw.imageUrl),
+    photoUrl: normalizeMediaUrl(
+      raw.photo_url ||
+      raw.photoUrl ||
+      raw.photo ||
+      raw.photo_path ||
+      raw.image_url ||
+      raw.imageUrl ||
+      raw.evidence?.photo_url ||
+      raw.evidence?.url ||
+      raw.attachment?.url
+    ),
     timeline: normalizeStatusHistory(raw.status_history || raw.timeline, raw.status || 'NEW', createdAt),
     resolution,
   };
@@ -187,6 +223,8 @@ export async function createComplaintApi(payload: CreateComplaintPayload) {
       title: payload.title,
       description: payload.description,
       department_id: payload.departmentId,
+      location: payload.location,
+      ward: payload.ward || null,
       latitude: payload.latitude ?? null,
       longitude: payload.longitude ?? null,
       photo,
