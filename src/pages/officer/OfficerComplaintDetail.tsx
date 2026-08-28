@@ -39,7 +39,7 @@ import { useOfficerComplaints } from '../../context/OfficerComplaintsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import {
-  getComplaintByIdApi,
+  getOfficerComplaintByIdApi,
   updateComplaintStatusApi,
   addComplaintProgressApi,
   resolveComplaintApi,
@@ -93,7 +93,7 @@ export function OfficerComplaintDetail() {
     setIsLoading(true);
     setApiError(null);
 
-    const res = await getComplaintByIdApi(normalizedId);
+    const res = await getOfficerComplaintByIdApi(normalizedId);
     if (res.success && res.data) {
       const data: ComplaintResponseData = (res.data as any).complaint || res.data;
       setApiComplaint(data);

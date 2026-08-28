@@ -84,6 +84,12 @@ export function AdminDashboard() {
   useEffect(() => {
     if (!USE_MOCK_DATA) {
       fetchRealAdminData();
+
+      const handleFocus = () => {
+        fetchRealAdminData();
+      };
+      window.addEventListener('focus', handleFocus);
+      return () => window.removeEventListener('focus', handleFocus);
     }
   }, [searchTerm, statusFilter, priorityFilter, departmentFilter]);
 

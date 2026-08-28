@@ -62,6 +62,12 @@ export function AdminComplaints() {
   useEffect(() => {
     if (!USE_MOCK_DATA) {
       fetchRealComplaints();
+
+      const handleFocus = () => {
+        fetchRealComplaints();
+      };
+      window.addEventListener('focus', handleFocus);
+      return () => window.removeEventListener('focus', handleFocus);
     }
   }, [searchTerm, statusFilter, priorityFilter, departmentFilter]);
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Mail, Building, RotateCcw, CheckCircle, XCircle, UserCheck, Lock, Unlock } from 'lucide-react';
 import { PageHeader, Card, CardContent, Button, LoadingState, ErrorMessage } from '../../components/ui';
 import { useAdminComplaints } from '../../context/AdminComplaintsContext';
-import { getAdminOfficersApi, approveOfficerApi, rejectOfficerApi, blockOfficerApi, unblockOfficerApi, type AdminOfficerData } from '../../api/admin';
+import { getAdminOfficersApi, approveOfficerApi, rejectOfficerApi, blockOfficerApi, unblockOfficerApi, blockUserApi, unblockUserApi, type AdminOfficerData } from '../../api/admin';
 import { USE_MOCK_DATA } from '../../api/client';
 
 export function AdminOfficers() {
@@ -81,13 +81,32 @@ export function AdminOfficers() {
     if (!USE_MOCK_DATA) {
       const res = isBlocked ? await unblockOfficerApi(officerId) : await blockOfficerApi(officerId);
       if (!res.success) {
-        setActionError(res.error || `Unable to change block status for "${userName}".`);
+        setActionError(res.error || `Unable to change officer block status for "${userName}".`);
       } else {
         setActionSuccess(`Officer "${userName}" ${isBlocked ? 'unblocked' : 'blocked'} successfully.`);
         await fetchRealOfficers();
       }
     } else {
       setActionSuccess(`Demo Mode: Officer "${userName}" ${isBlocked ? 'unblocked' : 'blocked'}.`);
+    }
+    setLoadingActionId(null);
+  };
+
+  const handleToggleUserBlock = async (userId: string, userName: string, isUserBlocked: boolean) => {
+    setActionError(null);
+    setActionSuccess(null);
+    setLoadingActionId(userId);
+
+    if (!USE_MOCK_DATA) {
+      const res = isUserBlocked ? await unblockUserApi(userId) : await blockUserApi(userId);
+      if (!res.success) {
+        setActionError(res.error || `Unable to change user account block status for "${userName}".`);
+      } else {
+        setActionSuccess(`User account "${userName}" ${isUserBlocked ? 'unblocked' : 'blocked'} successfully.`);
+        await fetchRealOfficers();
+      }
+    } else {
+      setActionSuccess(`Demo Mode: User account "${userName}" ${isUserBlocked ? 'unblocked' : 'blocked'}.`);
     }
     setLoadingActionId(null);
   };
@@ -241,7 +260,7 @@ export function AdminOfficers() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -251,6 +270,16 @@ export function AdminOfficers() {
                       leftIcon={off.isBlocked ? <Unlock className="w-3 h-3 text-emerald-600" /> : <Lock className="w-3 h-3 text-rose-600" />}
                     >
                       {off.isBlocked ? 'Unblock Officer' : 'Block Officer'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-[11px] text-slate-500 hover:text-slate-800"
+                      onClick={() => handleToggleUserBlock(off.user_id, off.name, false)}
+                      isLoading={loadingActionId === off.user_id}
+                      leftIcon={<Lock className="w-3 h-3 text-amber-600" />}
+                    >
+                      Block User
                     </Button>
                   </div>
                 </div>

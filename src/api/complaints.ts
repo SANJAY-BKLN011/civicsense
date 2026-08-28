@@ -65,7 +65,7 @@ function normalizeMediaUrl(value?: string | null): string | undefined {
   if (value.startsWith('data:image/')) return value;
   if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith('/')) return `${API_ORIGIN}${value}`;
-  return value;
+  return `${API_ORIGIN}/${value}`;
 }
 
 function formatPriority(value?: string): string {
@@ -246,6 +246,12 @@ export async function getOfficerComplaintsApi(params?: {
     data: rawComplaints.map(normalizeComplaint),
     pagination: payload?.pagination,
   };
+}
+
+export async function getOfficerComplaintByIdApi(id: string) {
+  const result = await apiFetch<any>(`/officer/complaints/${encodeURIComponent(id)}`, { method: 'GET' });
+  if (!result.success) return result;
+  return { ...result, data: result.data ? normalizeComplaint((result.data as any).complaint || result.data) : result.data };
 }
 
 /** I5: Officer-only status update endpoint. */

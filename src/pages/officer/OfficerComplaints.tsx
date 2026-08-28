@@ -85,6 +85,7 @@ export function OfficerComplaints() {
         priority: c.priority || 'Medium',
         thumbnailIcon: c.thumbnailIcon || '📌',
         description: c.description,
+        photoUrl: c.photoUrl,
       }))
     : mockStoreComplaints;
 
